@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Lojista {
+  id             String         @id @default(uuid())
+  nome           String
+  email          String?        @unique
+  cnpj           String?        @unique
+  telefone       String?
+  cidade         String?
+  situacao       String         @default("A")
+  senha          String?
+  saldo          Float          @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  listaPrecoId   String?
+  listaPreco     ListaPreco?    @relation(fields: [listaPrecoId], references: [id])
+  acessoPortal   Boolean        @default(false)
+  
+  // Relações
+  pedidos        Pedido[]
+  pedidosUpload  PedidoUpload[]
+  precos         preco_lojista[]
+}
+
+model Pedido {
+  id             String   @id @default(uuid())
+  lojistaId      String
+  lojista        Lojista  @relation(fields: [lojistaId], references: [id])
+  itens          String   @default("[]") // JSON com [{codigo, nome, qtd, precoUnitario}]
+  total          Float    @default(0)
+  status         String   @default("aguardando autorização") // aguardando autorização, autorizado, em embalagem, finalizado
+  plataforma     String?  // Shopee, Mercado Livre, etc
+  formaPagamento String?
+  observacao     String?
+  pedidoBlingId  String?  // ID do pedido no Bling após sincronizar
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PedidoUpload {
+  id             String   @id @default(uuid())
+  arquivoUrl     String   
+  status         String   @default("pendente") 
+  dadosExtraidos String?  
+  lojistaId      String
+  lojista        Lojista  @relation(fields: [lojistaId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ListaPreco {
+  id                 String    @id @default(uuid())
+  nome               String
+  precosPorCategoria String    @default("{}") 
+  lojistasVinculados String    @default("[]") 
+  lojistas           Lojista[]
+  createdAt          DateTime  @default(now())
+}
+
+model Integracao {
+  id           String   @id @default(uuid())
+  nome         String   @unique
+  accessToken  String
+  refreshToken String?
+  expiresIn    DateTime?
+  updatedAt    DateTime @updatedAt
+}
+
+model Categoria {
+  id       String    @id @default(uuid())
+  nome     String    @unique
+  produtos Produto[]
+}
+
+model Produto {
+  id          String     @id @default(uuid())
+  codigo      String     @unique 
+  nome        String
+  preco       Float
+  estoque     Int        @default(0)
+  imagemUrl   String?
+  situacao    String     @default("A")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  // Relação com Categoria
+  categoriaId String?
+  categoria   Categoria? @relation(fields: [categoriaId], references: [id])
+}
+
+model preco_lojista {
+  id          String   @id @default(uuid())
+  cliente_id  String
+  lojista     Lojista  @relation(fields: [cliente_id], references: [id])
+  categoria   String   
+  preco       Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([cliente_id, categoria])
+}
