@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 
-// 1. Função para listar (GET) - Já estava correta
+// 1. Função para listar (GET)
 export async function GET(request: NextRequest) {
   try {
-    const tokenDb = await prisma.integracao.findUnique({ where: { nome: 'Bling' } })
-    if (!tokenDb) return NextResponse.json({ error: 'Bling não conectado.' }, { status: 401 })
+    // Ajuste: Usamos findFirst com o campo 'tipo' que existe no seu schema
+    const tokenDb = await prisma.integracao.findFirst({ 
+      where: { tipo: 'BLING' } 
+    })
+
+    if (!tokenDb || !tokenDb.token) {
+      return NextResponse.json({ error: 'Bling não conectado.' }, { status: 401 })
+    }
 
     let todosProdutos: any[] = []
     let pagina = 1
     while (true) {
       const response = await fetch(`https://www.bling.com.br/Api/v3/produtos?limite=100&pagina=${pagina}`, {
-        headers: { 'Authorization': `Bearer ${tokenDb.accessToken}` }
+        headers: { 'Authorization': `Bearer ${tokenDb.token}` } // Ajustado para .token
       })
       if (!response.ok) break
       const data = await response.json()
       if (!data.data || data.data.length === 0) break
       todosProdutos = [...todosProdutos, ...data.data]
       pagina++
+      
+      if (pagina > 50) break
     }
     return NextResponse.json({ data: todosProdutos })
   } catch (err: any) {
@@ -25,11 +33,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// 2. Função para Sincronizar (POST) - AGORA COM LOOP DE PÁGINAS
+// 2. Função para Sincronizar (POST) - COM LOOP DE PÁGINAS
 export async function POST(request: NextRequest) {
   try {
-    const tokenDb = await prisma.integracao.findUnique({ where: { nome: 'Bling' } })
-    if (!tokenDb) return NextResponse.json({ error: 'Bling não conectado.' }, { status: 401 })
+    // Ajuste: Usamos findFirst com o campo 'tipo' que existe no seu schema
+    const tokenDb = await prisma.integracao.findFirst({ 
+      where: { tipo: 'BLING' } 
+    })
+
+    if (!tokenDb || !tokenDb.token) {
+      return NextResponse.json({ error: 'Bling não conectado.' }, { status: 401 })
+    }
 
     let todosProdutos: any[] = []
     let pagina = 1
@@ -38,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     while (true) {
       const response = await fetch(`https://www.bling.com.br/Api/v3/produtos?limite=100&pagina=${pagina}`, {
-        headers: { 'Authorization': `Bearer ${tokenDb.accessToken}` }
+        headers: { 'Authorization': `Bearer ${tokenDb.token}` } // Ajustado para .token
       })
       
       if (!response.ok) break

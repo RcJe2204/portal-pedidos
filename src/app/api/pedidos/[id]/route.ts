@@ -33,10 +33,8 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
-      ...pedido,
-      itens: JSON.parse(pedido.itens as string),
-    });
+    // Nota: O campo 'itens' foi removido pois não existe no modelo Pedido do schema.prisma
+    return NextResponse.json(pedido);
   } catch (error) {
     console.error('Erro ao buscar pedido:', error);
     return NextResponse.json(
@@ -82,10 +80,8 @@ export async function PATCH(
       }
     });
 
-    return NextResponse.json({
-      ...pedidoAtualizado,
-      itens: JSON.parse(pedidoAtualizado.itens as string),
-    });
+    // Nota: O campo 'itens' foi removido pois não existe no modelo Pedido do schema.prisma
+    return NextResponse.json(pedidoAtualizado);
   } catch (error) {
     console.error('Erro ao atualizar pedido:', error);
     return NextResponse.json(

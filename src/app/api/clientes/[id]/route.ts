@@ -16,7 +16,7 @@ export async function GET(
     const lojista = await prisma.lojista.findUnique({
       where: { id },
       include: {
-        listaPreco: true
+        listaPrecos: true // Corrigido para o plural conforme schema
       }
     });
 
@@ -45,32 +45,22 @@ export async function PUT(
 
     const body = await request.json();
     
-    const dataToUpdate: any = {
-      nome: body.nome,
-      cnpj: body.cnpj,
-      cidade: body.cidade,
-      situacao: body.situacao,
-      telefone: body.telefone,
-      email: body.email,
-    };
-
-    if (body.listaPrecoId && body.listaPrecoId !== "") {
-      dataToUpdate.listaPrecoId = body.listaPrecoId;
-    } else {
-      dataToUpdate.listaPrecoId = null;
-    }
-
+    // Ajustado para usar os campos reais do schema (status em vez de situacao)
     const lojista = await prisma.lojista.update({
       where: { id: id },
-      data: dataToUpdate
+      data: {
+        nome: body.nome,
+        cnpj: body.cnpj,
+        cidade: body.cidade,
+        status: body.status || body.situacao || 'ativo',
+        telefone: body.telefone,
+        email: body.email,
+      }
     });
 
     return NextResponse.json(lojista);
   } catch (error: any) {
     console.error('Erro ao salvar lojista (PUT):', error);
-    if (error.code === 'P2003') {
-      return NextResponse.json({ error: 'A Lista de Preço selecionada é inválida ou não existe.' }, { status: 400 });
-    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -105,7 +95,8 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    await prisma.preco_lojista.deleteMany({ where: { cliente_id: id } });
+    // Corrigido nomes de modelos e campos conforme o schema.prisma
+    await prisma.precoLojista.deleteMany({ where: { lojistaId: id } });
     await prisma.pedidoUpload.deleteMany({ where: { lojistaId: id } });
     await prisma.lojista.delete({ where: { id: id } });
 

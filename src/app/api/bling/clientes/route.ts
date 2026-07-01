@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
         if (!res.ok) { temMais = false; break; }
         const json = await res.json()
         const lista = json.data || []
-        if (lista.length === 0) { temMais = false } else {
+        if (lista.length === 0) { 
+          temMais = false 
+        } else {
           const formatados = lista.map((c: any) => ({
             id: c.id,
             nome: c.nome,
@@ -36,12 +38,14 @@ export async function GET(request: NextRequest) {
         }
       }
       return { error: false, data: todos }
-    } catch (err) { return { error: true, data: [] } }
+    } catch (err) { 
+      return { error: true, data: [] } 
+    }
   }
 
   const result = await fetchClientesBling(accessToken)
   
-  // Busca os lojistas locais incluindo o vínculo da lista de preço
+  // Busca os lojistas locais. O campo no banco é 'status', mas enviamos como 'situacao' para o front
   const lojistasLocais = await prisma.lojista.findMany({ orderBy: { createdAt: 'desc' } })
 
   const lojistasFormatados = lojistasLocais.map(l => ({
@@ -49,10 +53,9 @@ export async function GET(request: NextRequest) {
     nome: l.nome,
     email: l.email || '---',
     numeroDocumento: l.cnpj || '',
-    situacao: l.situacao || 'A',
+    situacao: l.status || 'ativo', // Mapeia 'status' do banco para 'situacao' do front
     cidade: l.cidade || 'Local',
     telefone: l.telefone || '---',
-    listaPrecoId: l.listaPrecoId, // Envia para a interface mostrar se quiser
     origem: 'local'
   }))
 
@@ -66,15 +69,14 @@ export async function POST(request: NextRequest) {
     const novo = await prisma.lojista.create({
       data: {
         nome: body.nome,
-        email: body.email || null,
+        email: body.email || "", // Email é obrigatório e único no seu schema
         cnpj: body.numeroDocumento || body.cnpj || '',
         telefone: body.telefone || '',
         cidade: body.cidade || '',
-        situacao: body.situacao || 'A',
-        // Vínculo com a lista de preço no momento do cadastro
-        listaPrecoId: body.listaPrecoId || null,
-        senha: null,
-        saldo: 0
+        status: body.situacao || 'ativo', // Usa 'status' conforme o schema.prisma
+        senha: body.senha || "", // Senha é obrigatória no seu schema (String)
+        saldo: 0,
+        acessoPortal: false
       }
     })
 

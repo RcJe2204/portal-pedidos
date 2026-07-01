@@ -68,49 +68,48 @@ export async function POST(request: NextRequest) {
     const loja = extrairLoja(texto);
     const observacoesDanfe = extrairObservacoes(texto);
 
-    const itensParaSalvar = [];
     let total = 0;
 
     for (const item of itensExtraidos) {
-      // Busca preço na tabela preco_lojista (conforme seu schema)
-      const precoPersonalizado = await prisma.preco_lojista.findFirst({
-        where: { 
-          cliente_id: clienteId,
-          categoria: item.categoria_nome 
-        }
+      // 1. Busca o produto pelo código (SKU) para obter o ID interno
+      const produto = await prisma.produto.findUnique({
+        where: { codigo: item.sku }
       });
 
-      const precoUnit = precoPersonalizado?.preco ?? 0;
+      let precoUnit = 0;
+
+      if (produto) {
+        // 2. Busca preço personalizado na tabela precoLojista vinculando Produto e Lojista
+        const precoPersonalizado = await prisma.precoLojista.findFirst({
+          where: { 
+            lojistaId: clienteId,
+            produtoId: produto.id
+          }
+        });
+        // Usa o preço personalizado ou o preço padrão do produto
+        precoUnit = precoPersonalizado?.preco ?? produto.preco;
+      }
+
       const subtotal = precoUnit * item.quantidade;
-
       total += subtotal;
-
-      itensParaSalvar.push({
-        codigo: item.sku,
-        nome: item.produto,
-        quantidade: item.quantidade,
-        precoUnitario: precoUnit,
-        subtotal
-      });
     }
 
     // === CRIAR PEDIDO (ALINHADO AO SCHEMA.PRISMA) ===
+    // Nota: 'observacao' e 'itens' foram removidos pois não existem no modelo Pedido do seu schema.
     const pedido = await prisma.pedido.create({
       data: {
-        lojistaId: clienteId,      // Nome correto no schema
-        plataforma: canal,         // Nome correto no schema
+        lojistaId: clienteId,      
+        plataforma: canal,         
         total: total,
-        status: "aguardando autorização", // Status padrão do seu schema
-        observacao: `Loja: ${loja} | ${observacoesDanfe}`, // 'origem' não existe, vai para observação
-        itens: JSON.stringify(itensParaSalvar) // Salva como String conforme o schema
+        status: "pendente" // Status padrão conforme seu schema
       }
     });
 
     return NextResponse.json(pedido, { status: 201 });
-  } catch (e) {
+  } catch (e: any) {
     console.error("Erro ao importar DANFE Shopee:", e);
     return NextResponse.json(
-      { error: "Erro ao processar PDF" },
+      { error: "Erro ao processar PDF: " + e.message },
       { status: 500 }
     );
   }

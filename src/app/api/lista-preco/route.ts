@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// GET: Listar todas as listas de preço (COM LOJISTAS INCLUÍDOS)
+// GET: Listar todas as listas de preço (COM LOJISTA INCLUÍDO)
 export async function GET() {
   try {
     const listas = await prisma.listaPreco.findMany({
       include: {
-        lojistas: true // ALTERAÇÃO: Isso faz os lojistas aparecerem na página
+        lojista: true // Ajustado para o nome da relação no seu schema
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -26,18 +26,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!body.nome) {
+    if (!body.nome || !body.lojistaId) {
       return NextResponse.json(
-        { error: 'Nome da lista é obrigatório.' },
+        { error: 'Nome da lista e lojistaId são obrigatórios.' },
         { status: 400 }
       );
     }
 
+    // Ajustado para usar apenas os campos que existem no seu schema.prisma
     const lista = await prisma.listaPreco.create({
       data: {
         nome: body.nome,
-        precosPorCategoria: body.precosPorCategoria || '{}',
-        lojistasVinculados: body.lojistasVinculados || '[]',
+        lojistaId: body.lojistaId
       }
     });
 
@@ -70,8 +70,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: {
         ...(body.nome !== undefined && { nome: body.nome }),
-        ...(body.precosPorCategoria !== undefined && { precosPorCategoria: body.precosPorCategoria }),
-        ...(body.lojistasVinculados !== undefined && { lojistasVinculados: body.lojistasVinculados }),
+        ...(body.lojistaId !== undefined && { lojistaId: body.lojistaId }),
       }
     });
 
@@ -98,12 +97,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Remove o vínculo dos lojistas que usavam essa lista
-    await prisma.lojista.updateMany({
-      where: { listaPrecoId: id },
-      data: { listaPrecoId: null }
-    });
-
+    // No seu schema, o Lojista não possui listaPrecoId, 
+    // a relação é direta da ListaPreco para o Lojista.
     await prisma.listaPreco.delete({ where: { id } });
 
     return NextResponse.json({ message: 'Lista excluída com sucesso.' });

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// GET: Busca um lojista pelo ID
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,7 +15,7 @@ export async function GET(
     const lojista = await prisma.lojista.findUnique({
       where: { id },
       include: {
-        listaPreco: true
+        listaPrecos: true // Corrigido para o plural conforme schema
       }
     });
 
@@ -31,7 +30,6 @@ export async function GET(
   }
 }
 
-// PUT: Atualiza todos os dados do lojista
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -45,37 +43,26 @@ export async function PUT(
 
     const body = await request.json();
     
-    const dataToUpdate: any = {
-      nome: body.nome,
-      cnpj: body.cnpj,
-      cidade: body.cidade,
-      situacao: body.situacao,
-      telefone: body.telefone,
-      email: body.email,
-    };
-
-    if (body.listaPrecoId && body.listaPrecoId !== "") {
-      dataToUpdate.listaPrecoId = body.listaPrecoId;
-    } else {
-      dataToUpdate.listaPrecoId = null;
-    }
-
+    // Ajustado para usar os campos reais do schema (status em vez de situacao)
     const lojista = await prisma.lojista.update({
       where: { id: id },
-      data: dataToUpdate
+      data: {
+        nome: body.nome,
+        cnpj: body.cnpj,
+        cidade: body.cidade,
+        status: body.status || body.situacao, // Mapeia situacao para status se necessário
+        telefone: body.telefone,
+        email: body.email,
+      }
     });
 
     return NextResponse.json(lojista);
   } catch (error: any) {
     console.error('Erro ao salvar lojista (PUT):', error);
-    if (error.code === 'P2003') {
-      return NextResponse.json({ error: 'A Lista de Preço selecionada é inválida ou não existe.' }, { status: 400 });
-    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// PATCH: Atualiza dados específicos (como apenas o acesso ao portal)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -97,7 +84,6 @@ export async function PATCH(
   }
 }
 
-// DELETE: Exclui o lojista e limpa todos os seus vínculos
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -105,7 +91,8 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    await prisma.preco_lojista.deleteMany({ where: { cliente_id: id } });
+    // Corrigido nomes de modelos e campos conforme o schema.prisma
+    await prisma.precoLojista.deleteMany({ where: { lojistaId: id } });
     await prisma.pedidoUpload.deleteMany({ where: { lojistaId: id } });
     await prisma.lojista.delete({ where: { id: id } });
 

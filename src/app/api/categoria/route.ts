@@ -7,24 +7,32 @@ export async function GET(requisicao: NextRequest) {
     const lojistaId = searchParams.get('lojistaId');
 
     if (lojistaId) {
-      const permissoes = await prisma.preco_lojista.findMany({
+      // Busca os preços vinculados ao lojista para descobrir quais categorias ele acessa
+      const permissoes = await prisma.precoLojista.findMany({
         where: {
-          cliente_id: lojistaId,
+          lojistaId: lojistaId,
           preco: { gt: 0 }
         },
-        select: { categoria: true }
-      });
-
-      const nomesPermitidos = Array.from(new Set(permissoes.map(p => p.categoria.trim().toUpperCase())));
-
-      const categoriasFiltradas = await prisma.categoria.findMany({
-        where: {
-          nome: {
-            in: nomesPermitidos
+        include: {
+          produto: {
+            include: {
+              categoria: true
+            }
           }
-        },
-        orderBy: { nome: 'asc' }
+        }
       });
+
+      // Extrai as categorias únicas dos produtos que possuem preço definido
+      const categoriasMap = new Map();
+      permissoes.forEach(p => {
+        if (p.produto.categoria) {
+          categoriasMap.set(p.produto.categoria.id, p.produto.categoria);
+        }
+      });
+
+      const categoriasFiltradas = Array.from(categoriasMap.values()).sort((a, b) => 
+        a.nome.localeCompare(b.nome)
+      );
 
       return NextResponse.json(categoriasFiltradas);
     }
@@ -34,9 +42,9 @@ export async function GET(requisicao: NextRequest) {
     });
 
     return NextResponse.json(todasCategorias);
-  } catch (erro) {
+  } catch (erro: any) {
     console.error('Erro ao buscar categorias:', erro);
-    return NextResponse.json({ erro: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ erro: 'Erro interno ao buscar categorias' }, { status: 500 });
   }
 }
 
@@ -47,34 +55,24 @@ export async function POST(requisicao: NextRequest) {
     if (!nomeRecebido) return NextResponse.json({ erro: 'Nome obrigatório' }, { status: 400 });
 
     const nome = String(nomeRecebido).trim().toUpperCase();
-    const categoriaCriada = await prisma.categoria.upsert({
-      where: { nome },
-      update: {},
-      create: { nome }
+
+    // No seu schema o nome não é @unique, então buscamos primeiro
+    let categoriaExistente = await prisma.categoria.findFirst({
+      where: { nome }
     });
 
-    const todosOsLojistas = await prisma.lojista.findMany();
-    await Promise.all(
-      todosOsLojistas.map((lojista) =>
-        prisma.preco_lojista.upsert({
-          where: {
-            cliente_id_categoria: {
-              cliente_id: lojista.id,
-              categoria: nome
-            }
-          },
-          update: {},
-          create: {
-            cliente_id: lojista.id,
-            categoria: nome,
-            preco: 0,
-          },
-        })
-      )
-    );
+    if (!categoriaExistente) {
+      categoriaExistente = await prisma.categoria.create({
+        data: { nome }
+      });
+    }
 
-    return NextResponse.json(categoriaCriada, { status: 201 });
-  } catch (erro) {
-    return NextResponse.json({ erro: 'Erro ao criar' }, { status: 500 });
+    // Nota: A lógica de criar PrecoLojista por categoria foi removida 
+    // pois no seu schema atual os preços são vinculados a Produtos (produtoId).
+
+    return NextResponse.json(categoriaExistente, { status: 201 });
+  } catch (erro: any) {
+    console.error('Erro ao criar categoria:', erro);
+    return NextResponse.json({ erro: 'Erro ao criar categoria' }, { status: 500 });
   }
 }
