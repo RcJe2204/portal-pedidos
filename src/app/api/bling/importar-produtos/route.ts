@@ -16,7 +16,7 @@ export async function GET() {
     const json = await res.json();
     const itens = json.data || [];
 
-    for (const p of itens) {
+    for (const p of itens) {    
       await prisma.produto.upsert({
         where: { codigo: String(p.codigo || p.id) },
         update: { nome: p.nome, preco: Number(p.preco || 0), categoriaId: catGeral.id, lojistaId: integracao.lojistaId },
