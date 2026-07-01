@@ -18,6 +18,7 @@ model Lojista {
   updatedAt DateTime @updatedAt
 
   pedidos       Pedido[]
+  pedidosUpload PedidoUpload[] // Adicionamos esta ligação
   listaPrecos   ListaPreco[]
   integracoes   Integracao[]
   produtos      Produto[]
@@ -34,25 +35,25 @@ model Pedido {
   updatedAt  DateTime @updatedAt
 
   lojista  Lojista       @relation(fields: [lojistaId], references: [id])
-  uploads  PedidoUpload[]
 }
 
 model PedidoUpload {
-  id        String   @id @default(uuid())
-  pedidoId  String
-  arquivo   String
-  createdAt DateTime @default(now())
-
-  pedido Pedido @relation(fields: [pedidoId], references: [id])
+  id         String   @id @default(uuid())
+  arquivoUrl String   // Nome corrigido para bater com o código
+  status     String   @default("pendente")
+  lojistaId  String   // Ligação direta com o lojista
+  lojista    Lojista  @relation(fields: [lojistaId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
+// ... (restante dos modelos: ListaPreco, Integracao, Categoria, Produto, PrecoLojista permanecem iguais)
 model ListaPreco {
   id        String   @id @default(uuid())
   lojistaId String
   nome      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   lojista Lojista @relation(fields: [lojistaId], references: [id])
 }
 
@@ -63,7 +64,6 @@ model Integracao {
   token     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   lojista Lojista @relation(fields: [lojistaId], references: [id])
 }
 
@@ -73,7 +73,6 @@ model Categoria {
   parentId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   parent   Categoria? @relation("CategoriaHierarquia", fields: [parentId], references: [id])
   children Categoria[] @relation("CategoriaHierarquia")
   produtos Produto[]
@@ -88,7 +87,6 @@ model Produto {
   sku         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   lojista    Lojista       @relation(fields: [lojistaId], references: [id])
   categoria  Categoria?    @relation(fields: [categoriaId], references: [id])
   precos     PrecoLojista[]
@@ -101,7 +99,6 @@ model PrecoLojista {
   preco      Float
   createdAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   lojista Lojista @relation(fields: [lojistaId], references: [id])
   produto Produto @relation(fields: [produtoId], references: [id])
 }
