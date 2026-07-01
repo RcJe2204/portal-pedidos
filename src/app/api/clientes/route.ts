@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
         where: { cnpj: cnpjLimpo },
         update: { 
           nome: body.nome, 
-          email: body.email || null, 
+          email: body.email || `${cnpjLimpo}@sistema.com`, // Email é obrigatório no schema
           telefone: body.telefone || '', 
           cidade: body.cidade || '',
           senha: body.senha || '123456',
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         },
         create: { 
           nome: body.nome, 
-          email: body.email || null, 
+          email: body.email || `${cnpjLimpo}@sistema.com`, 
           cnpj: cnpjLimpo, 
           telefone: body.telefone || '', 
           cidade: body.cidade || '', 
@@ -57,16 +57,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Sincronização com o Bling
-    const integracao = await prisma.integracao.findFirst({ where: { nome: 'Bling' } });
+    // AJUSTE: Trocado 'nome' por 'tipo' e buscado o campo 'token' conforme o schema
+    const integracao = await prisma.integracao.findFirst({ where: { tipo: 'BLING' } });
     
-    if (!integracao || !integracao.accessToken) {
+    if (!integracao || !integracao.token) {
       return NextResponse.json({ 
         error: 'Bling não conectado e nenhum dado manual enviado.' 
       }, { status: 401 });
     }
 
     const resBling = await fetch('https://www.bling.com.br/Api/v3/contatos', {
-      headers: { 'Authorization': `Bearer ${integracao.accessToken}` }
+      headers: { 'Authorization': `Bearer ${integracao.token}` }
     });
 
     if (!resBling.ok) {
@@ -84,20 +85,19 @@ export async function POST(request: NextRequest) {
           where: { cnpj: cnpjLimpo },
           update: { 
             nome: c.nome, 
-            email: c.email || null, 
+            email: c.email || `${cnpjLimpo}@bling.com`, // Email é obrigatório no schema
             telefone: c.telefone || '', 
             cidade: c.municipio || '',
-            // No update do Bling, não alteramos o acessoPortal para não sobrescrever o que o admin definiu
           },
           create: { 
             nome: c.nome, 
-            email: c.email || null, 
+            email: c.email || `${cnpjLimpo}@bling.com`, 
             cnpj: cnpjLimpo, 
             telefone: c.telefone || '', 
             cidade: c.municipio || '', 
             saldo: 0,
             senha: '123456',
-            acessoPortal: false // Novos contatos do Bling começam desativados
+            acessoPortal: false 
           }
         });
       })
