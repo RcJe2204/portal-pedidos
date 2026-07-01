@@ -11,7 +11,7 @@ model Lojista {
   id           String   @id @default(uuid())
   nome         String
   email        String   @unique
-  cnpj         String?  @unique // Adicionamos o CNPJ aqui
+  cnpj         String?  @unique
   senha        String
   telefone     String?
   cidade       String?
@@ -51,8 +51,25 @@ model PedidoUpload {
   updatedAt  DateTime @updatedAt
 }
 
-// Os outros modelos (ListaPreco, Integracao, Categoria, Produto, PrecoLojista) 
-// permanecem iguais aos que mandei antes.
+model Produto {
+  id          String   @id @default(uuid())
+  lojistaId   String
+  categoriaId String?
+  codigo      String   @unique // Adicionado de volta
+  nome        String
+  descricao   String?
+  preco       Float    @default(0) // Adicionado de volta
+  estoque     Int      @default(0) // Adicionado de volta
+  imagemUrl   String?
+  sku         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lojista    Lojista       @relation(fields: [lojistaId], references: [id])
+  categoria  Categoria?    @relation(fields: [categoriaId], references: [id])
+  precos     PrecoLojista[]
+}
+
 model ListaPreco {
   id        String   @id @default(uuid())
   lojistaId String
@@ -83,20 +100,6 @@ model Categoria {
   produtos Produto[]
 }
 
-model Produto {
-  id          String   @id @default(uuid())
-  lojistaId   String
-  categoriaId String?
-  nome        String
-  descricao   String?
-  sku         String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lojista    Lojista       @relation(fields: [lojistaId], references: [id])
-  categoria  Categoria?    @relation(fields: [categoriaId], references: [id])
-  precos     PrecoLojista[]
-}
-
 model PrecoLojista {
   id         String   @id @default(uuid())
   lojistaId  String
@@ -104,6 +107,7 @@ model PrecoLojista {
   preco      Float
   createdAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   lojista Lojista @relation(fields: [lojistaId], references: [id])
   produto Produto @relation(fields: [produtoId], references: [id])
 }
