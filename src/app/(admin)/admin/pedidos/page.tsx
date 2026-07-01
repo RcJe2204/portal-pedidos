@@ -9,8 +9,9 @@ async function getPedidos() {
   return pedidos
 }
 
-function formatarMoeda(valor: number) {
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function formatarMoeda(valor: number | null) {
+  // Aqui corrigimos para aceitar valor nulo
+  return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatarData(data: Date) {
@@ -36,7 +37,7 @@ function statusBadge(status: string) {
 type PedidoComLojista = {
   id: string
   lojista: { nome: string }
-  total: number
+  total: number | null // Aqui avisamos que o total pode ser nulo
   status: string
   plataforma: string | null
   createdAt: Date
