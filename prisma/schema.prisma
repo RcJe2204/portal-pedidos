@@ -8,17 +8,21 @@ datasource db {
 }
 
 model Lojista {
-  id        String   @id @default(uuid())
-  nome      String
-  email     String   @unique
-  senha     String
-  telefone  String?
-  status    String   @default("ativo")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  nome         String
+  email        String   @unique
+  cnpj         String?  @unique // Adicionamos o CNPJ aqui
+  senha        String
+  telefone     String?
+  cidade       String?
+  status       String   @default("ativo")
+  saldo        Float    @default(0)
+  acessoPortal Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   pedidos       Pedido[]
-  pedidosUpload PedidoUpload[] // Adicionamos esta ligação
+  pedidosUpload PedidoUpload[]
   listaPrecos   ListaPreco[]
   integracoes   Integracao[]
   produtos      Produto[]
@@ -39,15 +43,16 @@ model Pedido {
 
 model PedidoUpload {
   id         String   @id @default(uuid())
-  arquivoUrl String   // Nome corrigido para bater com o código
+  arquivoUrl String   
   status     String   @default("pendente")
-  lojistaId  String   // Ligação direta com o lojista
+  lojistaId  String   
   lojista    Lojista  @relation(fields: [lojistaId], references: [id])
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
 
-// ... (restante dos modelos: ListaPreco, Integracao, Categoria, Produto, PrecoLojista permanecem iguais)
+// Os outros modelos (ListaPreco, Integracao, Categoria, Produto, PrecoLojista) 
+// permanecem iguais aos que mandei antes.
 model ListaPreco {
   id        String   @id @default(uuid())
   lojistaId String
