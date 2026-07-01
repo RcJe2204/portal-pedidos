@@ -55,11 +55,12 @@ model Produto {
   id          String   @id @default(uuid())
   lojistaId   String
   categoriaId String?
-  codigo      String   @unique // Adicionado de volta
+  codigo      String   @unique
   nome        String
   descricao   String?
-  preco       Float    @default(0) // Adicionado de volta
-  estoque     Int      @default(0) // Adicionado de volta
+  preco       Float    @default(0)
+  estoque     Int      @default(0)
+  situacao    String   @default("A") // Adicionado agora para corrigir o erro
   imagemUrl   String?
   sku         String?
   createdAt   DateTime @default(now())
