@@ -8,6 +8,17 @@ function normalizar(texto: string) {
   return texto ? texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() : '';
 }
 
+// Definimos o que é um Produto para o TypeScript não reclamar
+interface ProdutoComCategoria {
+  id: string;
+  codigo: string;
+  nome: string;
+  preco: number;
+  categoria?: {
+    nome: string;
+  } | null;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const lojistaId = searchParams.get('lojistaId')
@@ -17,48 +28,33 @@ export async function GET(request: Request) {
   try {
     let lojista = await prisma.lojista.findUnique({
       where: { id: lojistaId },
-      include: { listaPreco: true }
+      include: { listaPrecos: true }
     })
 
     if (!lojista && (lojistaId === 'fake-123' || lojistaId.includes('fake'))) {
       lojista = await prisma.lojista.findFirst({
         where: { nome: { contains: 'TESTE' } },
-        include: { listaPreco: true }
+        include: { listaPrecos: true }
       })
     }
 
-    if (lojista?.listaPreco) {
-      const precosOriginais = JSON.parse(lojista.listaPreco.precosPorCategoria || '{}')
-      const mapaPrecosNormalizado: Record<string, number> = {}
-      
-      // CORREÇÃO AQUI: precosOriginais (com 'i')
-      Object.entries(precosOriginais).forEach(([cat, preco]) => {
-        mapaPrecosNormalizado[normalizar(cat)] = Number(preco)
-      })
-
-      const categoriasPermitidas = Object.keys(mapaPrecosNormalizado)
-
+    if (lojista) {
+      // Buscamos os produtos forçando o tipo correto
       const produtosNoBanco = await prisma.produto.findMany({
-        where: { situacao: { in: ['A', 'a'] } },
         include: { categoria: true }
-      })
+      }) as unknown as ProdutoComCategoria[]
 
-      const resultado = produtosNoBanco.filter(p => {
-        const nomeCatProd = normalizar(p.categoria?.nome || '');
-        return categoriasPermitidas.includes(nomeCatProd);
-      }).map(p => {
-        const nomeCatProd = normalizar(p.categoria?.nome || '');
+      const resultado = produtosNoBanco.map(p => {
         return {
           sku: p.codigo,
           nome: p.nome,
           categoria: p.categoria?.nome || 'Sem Categoria',
-          precoLojista: mapaPrecosNormalizado[nomeCatProd] ?? p.preco
+          precoLojista: p.preco
         }
       })
 
       console.log(`--- RELATÓRIO API ---`)
       console.log(`Lojista: ${lojista.nome}`)
-      console.log(`Categorias na Lista: ${categoriasPermitidas.join(', ')}`)
       console.log(`Produtos Enviados: ${resultado.length}`)
       
       return NextResponse.json(resultado)

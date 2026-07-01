@@ -5,16 +5,24 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
+    // Busca a configuração de integração
     const integracao = await prisma.integracao.findFirst();
     if (!integracao) return NextResponse.json({ error: 'Configuração não encontrada.' }, { status: 404 });
 
-    const categoriaPadrao = await prisma.categoria.upsert({
-      where: { nome: 'Geral' },
-      update: {},
-      create: { nome: 'Geral' }
+    // Garante que existe uma categoria padrão chamada 'Geral'
+    // Buscamos primeiro para evitar erro de tipo no comando upsert
+    let categoriaPadrao = await prisma.categoria.findFirst({
+      where: { nome: 'Geral' }
     });
 
-    const token = integracao.accessToken;
+    // Se não existir, criamos a categoria
+    if (!categoriaPadrao) {
+      categoriaPadrao = await prisma.categoria.create({
+        data: { nome: 'Geral' }
+      });
+    }
+
+    const token = integracao.token;
     let todosProdutos: any[] = [];
     let pagina = 1;
     let temMais = true;
@@ -22,19 +30,14 @@ export async function GET() {
     console.log('--- INICIANDO BUSCA NO BLING ---');
 
     while (temMais) {
-      // URL limpa, sem critérios, para pegar o que o Bling liberar
       const url = `https://www.bling.com.br/Api/v3/produtos?limite=100&pagina=${pagina}`;
       
-      const res = await fetch(url, {
+      const respostaBling = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      const json = await res.json();
-      
-      // Isso vai mostrar no seu terminal do VS Code o que o Bling respondeu de verdade
-      console.log(`Página ${pagina}:`, JSON.stringify(json).substring(0, 100));
-
-      const itens = json.data || [];
+      const dadosJson = await respostaBling.json();
+      const itens = dadosJson.data || [];
 
       if (itens.length === 0) {
         temMais = false;
@@ -42,38 +45,43 @@ export async function GET() {
         todosProdutos.push(...itens);
         pagina++;
       }
+      // Limite de segurança para não travar o processo
       if (pagina > 20) temMais = false;
     }
 
     if (todosProdutos.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        message: "O Bling conectou, mas não enviou produtos. Verifique as PERMISSÕES do Usuário API no painel do Bling." 
+        message: "Nenhum produto encontrado no Bling." 
       });
     }
 
-    for (const prod of todosProdutos) {
+    // Salva ou atualiza cada produto no banco de dados
+    for (const produto of todosProdutos) {
       await prisma.produto.upsert({
-        where: { codigo: String(prod.codigo || prod.id) },
+        where: { codigo: String(produto.codigo || produto.id) },
         update: {
-          nome: prod.nome,
-          preco: Number(prod.preco || 0),
+          nome: produto.nome,
+          preco: Number(produto.preco || 0),
           situacao: 'A',
-          categoriaId: categoriaPadrao.id
+          categoriaId: categoriaPadrao.id,
+          lojistaId: integracao.lojistaId
         },
         create: {
-          codigo: String(prod.codigo || prod.id),
-          nome: prod.nome,
-          preco: Number(prod.preco || 0),
+          codigo: String(produto.codigo || produto.id),
+          nome: produto.nome,
+          preco: Number(produto.preco || 0),
           situacao: 'A',
-          categoriaId: categoriaPadrao.id
+          categoriaId: categoriaPadrao.id,
+          lojistaId: integracao.lojistaId
         }
       });
     }
 
     return NextResponse.json({ success: true, total: todosProdutos.length });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (erro: any) {
+    console.error('Erro na importação:', erro);
+    return NextResponse.json({ error: erro.message }, { status: 500 });
   }
 }
