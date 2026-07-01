@@ -5,17 +5,18 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    // Busca a configuração de integração
+    // AJUSTE: Buscamos a primeira integração disponível em vez de filtrar por 'nome'
     const integracao = await prisma.integracao.findFirst();
-    if (!integracao) return NextResponse.json({ error: 'Configuração não encontrada.' }, { status: 404 });
+    
+    if (!integracao) {
+      return NextResponse.json({ error: 'Configuração não encontrada.' }, { status: 404 });
+    }
 
     // Garante que existe uma categoria padrão chamada 'Geral'
-    // Buscamos primeiro para evitar erro de tipo no comando upsert
     let categoriaPadrao = await prisma.categoria.findFirst({
       where: { nome: 'Geral' }
     });
 
-    // Se não existir, criamos a categoria
     if (!categoriaPadrao) {
       categoriaPadrao = await prisma.categoria.create({
         data: { nome: 'Geral' }
@@ -45,7 +46,6 @@ export async function GET() {
         todosProdutos.push(...itens);
         pagina++;
       }
-      // Limite de segurança para não travar o processo
       if (pagina > 20) temMais = false;
     }
 
