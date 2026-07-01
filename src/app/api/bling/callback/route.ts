@@ -1,52 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 
-  if (!code) return NextResponse.json({ error: 'Código não fornecido' }, { status: 400 });
+  if (!code) {
+    return NextResponse.json({ error: 'Código não fornecido' }, { status: 400 });
+  }
 
   try {
-    const clientId = '9fa182b9d7809d2561e16cfd6db8f06e8bd3c0a8';
-    const clientSecret = '3d7463612526fa929d2d9428e50a12a0f862c15b456cb0cafd7521fb7fdc'; // <--- COLOQUE O SEU SECRET AQUI
+    // 1. Troca o código pelo token no Bling
+    const clientId = process.env.BLING_CLIENT_ID;
+    const clientSecret = process.env.BLING_CLIENT_SECRET;
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
     const res = await fetch('https://www.bling.com.br/Api/v3/oauth/token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        code: code,
-        redirect_uri: 'http://localhost:3000/api/bling/callback'
+        code
       })
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error_description || 'Erro ao trocar token');
 
-    // Salva na tabela Integracao que criamos no seu schema
-    await prisma.integracao.upsert({
-      where: { nome: 'Bling' },
-      update: {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: new Date(Date.now() + data.expires_in * 1000)
-      },
-      create: {
-        nome: 'Bling',
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: new Date(Date.now() + data.expires_in * 1000)
-      }
-    });
+    if (!res.ok) {
+      throw new Error(data.error_description || 'Erro ao obter token');
+    }
 
-    // Volta para a página de produtos
-    return NextResponse.redirect(new URL('/admin/produtos', request.url));
+    // 2. Salva ou atualiza a integração no banco
+    // AJUSTE: Buscamos a primeira integração em vez de filtrar por 'nome'
+    const integracaoExistente = await prisma.integracao.findFirst();
+
+    if (integracaoExistente) {
+      await prisma.integracao.update({
+        where: { id: integracaoExistente.id },
+        data: {
+          token: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in
+        }
+      });
+    } else {
+      // Se não existir nenhuma, criamos a primeira (precisa de um lojistaId válido)
+      const lojista = await prisma.lojista.findFirst();
+      if (!lojista) throw new Error('Nenhum lojista cadastrado para vincular a integração');
+
+      await prisma.integracao.create({
+        data: {
+          token: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+          lojistaId: lojista.id,
+          tipo: 'BLING'
+        }
+      });
+    }
+
+    // 3. Redireciona de volta para o painel
+    return NextResponse.redirect(new URL('/admin/clientes', request.url));
 
   } catch (error: any) {
+    console.error('Erro no callback:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
