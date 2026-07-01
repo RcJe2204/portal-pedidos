@@ -6,12 +6,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const lojistaId = searchParams.get('lojistaId')
   if (!lojistaId) return NextResponse.json([])
+
   try {
-    const lojista = await prisma.lojista.findUnique({
-      where: { id: lojistaId },
-      include: { listaPrecos: true }
-    })
     const produtos = await prisma.produto.findMany({
+      where: { lojistaId },
       include: { categoria: true }
     })
     const resultado = produtos.map((p: any) => ({
@@ -22,6 +20,6 @@ export async function GET(request: Request) {
     }))
     return NextResponse.json(resultado)
   } catch (error) {
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
+    return NextResponse.json([], { status: 200 })
   }
 }
