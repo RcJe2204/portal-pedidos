@@ -35,11 +35,11 @@ model Pedido {
   lojista        Lojista  @relation(fields: [lojistaId], references: [id])
   itens          String   @default("[]") // JSON com [{codigo, nome, qtd, precoUnitario}]
   total          Float    @default(0)
-  status         String   @default("aguardando autorização") // aguardando autorização, autorizado, em embalagem, finalizado
-  plataforma     String?  // Shopee, Mercado Livre, etc
+  status         String   @default("aguardando autorização") 
+  plataforma     String?  
   formaPagamento String?
   observacao     String?
-  pedidoBlingId  String?  // ID do pedido no Bling após sincronizar
+  pedidoBlingId  String?  
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -90,7 +90,6 @@ model Produto {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   
-  // Relação com Categoria
   categoriaId String?
   categoria   Categoria? @relation(fields: [categoriaId], references: [id])
 }
