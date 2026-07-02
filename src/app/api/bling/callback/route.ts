@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.json({ error: 'Código não encontrado na URL.' }, { status: 400 });
+    return NextResponse.json({ error: 'Código não encontrado.' }, { status: 400 });
   }
 
   try {
@@ -39,31 +39,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro no Bling', details: data }, { status: response.status });
     }
 
-    // Buscamos o primeiro lojista (você) para atrelar a integração, já que seu schema exige lojistaId
+    // Busca o seu usuário no banco para vincular a integração
     const lojista = await prisma.lojista.findFirst();
     
     if (!lojista) {
-      return NextResponse.json({ error: 'Nenhum lojista encontrado no banco para associar a integração.' }, { status: 500 });
+      return NextResponse.json({ error: 'Nenhum lojista encontrado no banco.' }, { status: 500 });
     }
 
-    // Salvando exatamente com os nomes do seu schema: 'tipo' e 'token'
+    // Salva no banco usando os nomes exatos do seu schema: 'token' e 'lojistaId'
+    // Usamos 'as any' para o TypeScript não reclamar enquanto o build acontece
     await (prisma as any).integracao.upsert({
-      where: { id: 'bling-integration-id' }, // Usando um ID fixo para a integração principal
+      where: { id: 'bling-main-integration' }, 
       update: {
         token: data.access_token,
         updatedAt: new Date(),
       },
       create: {
-        id: 'bling-integration-id',
+        id: 'bling-main-integration',
         tipo: 'BLING',
         token: data.access_token,
-        lojistaId: lojista.id, // Campo obrigatório no seu schema
+        lojistaId: lojista.id,
       },
     });
 
     return NextResponse.redirect(new URL('/admin', request.url));
   } catch (error) {
-    console.error('Erro:', error);
-    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 });
+    console.error('Erro no callback:', error);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }
