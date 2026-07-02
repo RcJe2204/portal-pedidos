@@ -1,23 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
+// Conexão direta para garantir que a página veja o banco da Amazon
 const DB_URL = "postgresql://postgres:Rcje12345!@portal-pedidos-db.cvuim8mgqyf7.sa-east-1.rds.amazonaws.com:5432/postgres";
 const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DATABASE_URL || DB_URL } },
 });
 
+export async function GET() {
+  try {
+    // 1. Busca todos os produtos no banco
+    const produtos = await prisma.produto.findMany({
+      orderBy: { nome: 'asc' },
+    });
+
+    console.log(`[DEBUG] Produtos encontrados no banco: ${produtos.length}`);
+
+    // 2. Formata os dados exatamente como o seu frontend espera
+    // O segredo aqui é o estoque.saldoVirtualTotal
+    const resultado = produtos.map(p => ({
+      id: p.id,
+      codigo: p.codigo,
+      nome: p.nome,
+      preco: p.preco || 0,
+      estoque: { 
+        saldoVirtualTotal: p.estoque || 0 
+      },
+      situacao: p.situacao || 'A',
+      categoria: 'Bling'
+    }));
+
+    return NextResponse.json(resultado);
+  } catch (error: any) {
+    console.error('Erro ao listar produtos:', error);
+    return NextResponse.json({ error: 'Erro ao carregar lista', mensagem: error.message }, { status: 500 });
+  }
+}
+
+// Mantemos o POST aqui também para o botão de sincronizar ter um "porto seguro"
 export async function POST(request: NextRequest) {
   try {
-    // 1. Busca o Token do Bling
     const integracao = await (prisma as any).integracao.findFirst({ where: { tipo: 'BLING' } });
-    if (!integracao || !integracao.token) {
-      return NextResponse.json({ error: 'Bling não conectado.' }, { status: 400 });
-    }
+    if (!integracao || !integracao.token) return NextResponse.json({ error: 'Bling não conectado' }, { status: 400 });
 
-    // 2. Puxa os produtos do Bling (Sem filtros para vir tudo)
-    const response = await fetch('https://www.bling.com.br/Api/v3/produtos?pagina=1&limite=100', {
+    const response = await fetch('https://api.bling.com.br/Api/v3/produtos?pagina=1&limite=100&criterio=2', {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${integracao.token}`, 'Accept': 'application/json' },
     });
@@ -25,46 +53,24 @@ export async function POST(request: NextRequest) {
     const blingData = await response.json();
     const produtosBling = blingData.data || [];
 
-    if (produtosBling.length === 0) {
-      return NextResponse.json({ 
-        success: true, 
-        mensagem: "O Bling não entregou nenhum produto. Verifique se há produtos ativos no painel do Bling.",
-        debug: blingData 
-      });
-    }
-
-    // 3. SALVA NO BANCO DE DADOS (O pulo do gato)
-    let contagem = 0;
+    let salvos = 0;
     for (const p of produtosBling) {
-      try {
-        await (prisma as any).produto.upsert({
-          where: { sku: p.codigo || `SKU-${p.id}` },
-          update: {
-            nome: p.nome,
-            preco: p.preco || 0,
-            estoque: p.estoqueAtual || 0,
-          },
-          create: {
-            nome: p.nome,
-            sku: p.codigo || `SKU-${p.id}`,
-            preco: p.preco || 0,
-            estoque: p.estoqueAtual || 0,
-            lojistaId: integracao.lojistaId
-          },
-        });
-        contagem++;
-      } catch (e) {
-        console.log("Erro ao salvar produto individual:", e);
-      }
+      await prisma.produto.upsert({
+        where: { codigo: String(p.codigo || p.id) },
+        update: { nome: p.nome, preco: p.preco || 0, estoque: p.estoqueAtual || 0 },
+        create: {
+          codigo: String(p.codigo || p.id),
+          nome: p.nome,
+          preco: p.preco || 0,
+          estoque: p.estoqueAtual || 0,
+          lojistaId: integracao.lojistaId,
+        },
+      });
+      salvos++;
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      mensagem: `Sucesso! ${contagem} produtos foram sincronizados e salvos no banco.`,
-      quantidade: contagem 
-    });
-
+    return NextResponse.json({ success: true, totalImportado: salvos });
   } catch (error: any) {
-    return NextResponse.json({ error: 'Erro na sincronização', mensagem: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
