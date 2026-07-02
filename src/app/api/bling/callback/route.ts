@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 export const dynamic = "force-dynamic";
-
-// Inicializa o Prisma de forma segura
 const prisma = new PrismaClient();
 
 const BLING_CLIENT_ID = '9fa182b9d7809d2561e16cfd6db8f06e8bd3c0a8';
@@ -15,7 +13,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.json({ error: 'Código não encontrado' }, { status: 400 });
+    return NextResponse.json({ error: 'Código não encontrado na URL. Inicie pelo link /auth' }, { status: 400 });
   }
 
   try {
@@ -41,22 +39,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro no Bling', details: data }, { status: response.status });
     }
 
-    // IMPORTANTE: Se a linha abaixo der erro, mude 'accessToken' para o nome que está no seu schema.prisma
+    // Salvando no banco usando 'as any' para evitar erros de tipagem no build
     await (prisma as any).integracao.upsert({
       where: { tipo: 'BLING' },
       update: {
         accessToken: data.access_token,
+        refreshToken: data.refresh_token,
         updatedAt: new Date(),
       },
       create: {
         tipo: 'BLING',
         accessToken: data.access_token,
+        refreshToken: data.refresh_token,
       },
     });
 
     return NextResponse.redirect(new URL('/admin', request.url));
   } catch (error) {
     console.error('Erro:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 });
   }
 }
