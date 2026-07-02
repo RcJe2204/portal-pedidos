@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 export const dynamic = "force-dynamic";
-const prisma = new PrismaClient();
+
+// Link do banco corrigido como plano B caso a variável de ambiente falhe
+const DB_URL = "postgresql://postgres:Rcje12345!@portal-pedidos-db.cvuim8mgqyf7.sa-east-1.rds.amazonaws.com:5432/postgres";
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL || DB_URL,
+    },
+  },
+});
 
 const BLING_CLIENT_ID = '9fa182b9d7809d2561e16cfd6db8f06e8bd3c0a8';
 const BLING_CLIENT_SECRET = '3d7463612526fa929d2d9428e50a12a0f862c15b456cb0cafd7521fb7fdc';
@@ -39,47 +49,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro na troca do token', detalhes: data }, { status: response.status });
     }
 
-    // TESTE DE BANCO: Vamos ver se o Prisma consegue ler o banco
-    let lojista;
-    try {
-      lojista = await prisma.lojista.findFirst();
-    } catch (dbError: any) {
-      return NextResponse.json({ 
-        error: 'Erro ao conectar no Banco de Dados', 
-        mensagem: dbError.message,
-        dica: 'Verifique se a DATABASE_URL está correta na AWS Amplify.'
-      }, { status: 500 });
-    }
+    // Busca o lojista
+    const lojista = await prisma.lojista.findFirst();
     
     if (!lojista) {
-      return NextResponse.json({ error: 'Nenhum lojista cadastrado no banco.' }, { status: 500 });
+      return NextResponse.json({ error: 'Nenhum lojista encontrado no banco.' }, { status: 500 });
     }
 
-    // Tenta salvar a integração
-    try {
-      await (prisma as any).integracao.upsert({
-        where: { id: 'bling-main-auth' },
-        update: {
-          token: data.access_token,
-          updatedAt: new Date(),
-        },
-        create: {
-          id: 'bling-main-auth',
-          tipo: 'BLING',
-          token: data.access_token,
-          lojistaId: lojista.id,
-        },
-      });
-    } catch (saveError: any) {
-      return NextResponse.json({ 
-        error: 'Erro ao salvar o token na tabela Integracao', 
-        mensagem: saveError.message 
-      }, { status: 500 });
-    }
+    // Salva a integração
+    await (prisma as any).integracao.upsert({
+      where: { id: 'bling-main-auth' },
+      update: {
+        token: data.access_token,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: 'bling-main-auth',
+        tipo: 'BLING',
+        token: data.access_token,
+        lojistaId: lojista.id,
+      },
+    });
 
     return NextResponse.redirect(new URL('/admin', request.url));
 
   } catch (error: any) {
-    return NextResponse.json({ error: 'Erro crítico desconhecido', mensagem: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Erro crítico ao processar token', 
+      mensagem: error.message 
+    }, { status: 500 });
   }
 }
