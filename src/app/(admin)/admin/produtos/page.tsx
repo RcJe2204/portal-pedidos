@@ -1,447 +1,234 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+'use client'
 
-export interface Produto {
-  id: string;
-  codigo: string;
-  nome: string;
-  preco: number;
-  estoque: number;
-  categoria: string;
-  ativo: boolean;
-  sincronizado: boolean;
-  origem: 'bling' | 'customizado';
-  atualizadoEm: string;
-}
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { Search, Plus, Edit3, Trash2, ChevronLeft, ChevronRight, Package } from 'lucide-react'
+import ProdutoModal from '@/components/ProdutoModal'
 
-export interface FiltrosProdutos {
-  busca: string;
-  categoria: string;
-  origem: 'todos' | 'bling' | 'customizado';
-  apenasAtivos: boolean;
-}
-
-export interface Paginacao {
-  pagina: number;
-  porPagina: number;
-  total: number;
-}
-
-const STORAGE_KEY = 'admin_produtos_customizados';
-const ITENS_POR_PAGINA = 10;
-
-const filtrosIniciais: FiltrosProdutos = {
-  busca: '',
-  categoria: '',
-  origem: 'todos',
-  apenasAtivos: false,
-};
-
-const carregarProdutosCustomizados = (): Produto[] => {
-  try {
-    const dados = localStorage.getItem(STORAGE_KEY);
-    if (!dados) return [];
-    const parsed = JSON.parse(dados);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (erro) {
-    console.error('Erro ao carregar produtos customizados do storage:', erro);
-    return [];
+interface Produto {
+  id: number
+  codigo: string
+  nome: string
+  preco: number
+  estoque: {
+    saldoVirtualTotal: number
   }
-};
+  situacao: string
+  categoria?: string
+  tags?: string
+}
 
-const salvarProdutosCustomizados = (produtos: Produto[]): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(produtos));
-  } catch (erro) {
-    console.error('Erro ao salvar produtos customizados no storage:', erro);
-  }
-};
+interface ProdutoForm {
+  codigo: string
+  nome: string
+  preco: number
+  estoque: number
+  situacao: string
+  categoria: string
+  tags: string
+}
 
-const formatarMoeda = (valor: number): string =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(valor);
+const ITENS_POR_PAGINA = 30
+const STORAGE_KEY = 'portal_produtos_custom'
 
-const formatarData = (data: string): string => {
-  if (!data) return '-';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(data));
-};
+export default function AdminProdutosPage() {
+  const router = useRouter()
+  const [produtosBling, setProdutosBling] = useState<Produto[]>([])
+  const [produtosCustom, setProdutosCustom] = useState<Produto[]>([])
+  const [search, setSearch] = useState('')
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState('')
+  const [pagina, setPagina] = useState(1)
+  const [modalAberto, setModalAberto] = useState(false)
+  const [produtoEditando, setProdutoEditando] = useState<Produto | undefined>()
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState('')
+  const [sincronizando, setSincronizando] = useState(false)
 
-const AdminProdutosPage: React.FC = () => {
-  const [produtosBling, setProdutosBling] = useState<Produto[]>([]);
-  const [produtosCustomizados, setProdutosCustomizados] = useState<Produto[]>([]);
-  const [carregando, setCarregando] = useState<boolean>(false);
-  const [sincronizando, setSincronizando] = useState<boolean>(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [filtros, setFiltros] = useState<FiltrosProdutos>(filtrosIniciais);
-  const [paginacao, setPaginacao] = useState<Paginacao>({
-    pagina: 1,
-    porPagina: ITENS_POR_PAGINA,
-    total: 0,
-  });
-
-  const carregarProdutosBling = useCallback(async (): Promise<void> => {
-    setCarregando(true);
-    setErro(null);
+  const carregarProdutos = useCallback(async () => {
     try {
-      const resposta = await fetch('/api/bling/produtos');
-      if (!resposta.ok) {
-        throw new Error(`Falha ao carregar produtos do Bling: ${resposta.status}`);
+      const res = await fetch('/api/admin/produtos')
+      if (res.status === 401) {
+        setErro('Bling não conectado. Verifique as chaves no banco.')
+        return
       }
-      const dados = await resposta.json();
-      const produtos: Produto[] = (dados.produtos ?? []).map((p: any) => ({
-        id: String(p.id),
-        codigo: p.codigo ?? '',
-        nome: p.nome ?? '',
-        preco: Number(p.preco ?? 0),
-        estoque: Number(p.estoque ?? 0),
-        categoria: p.categoria ?? 'Geral',
-        ativo: Boolean(p.ativo ?? true),
-        sincronizado: true,
-        origem: 'bling',
-        atualizadoEm: p.atualizadoEm ?? new Date().toISOString(),
-      }));
-      setProdutosBling(produtos);
-    } catch (e) {
-      const mensagem = e instanceof Error ? e.message : 'Erro desconhecido ao carregar produtos.';
-      setErro(mensagem);
-      setProdutosBling([]);
+      if (!res.ok) throw new Error('Erro ao carregar produtos')
+      const data = await res.json()
+      setProdutosBling(Array.isArray(data) ? data : (data.data || []))
+      setErro('')
+    } catch (err) {
+      console.error('Erro ao carregar produtos:', err)
     } finally {
-      setCarregando(false);
+      setCarregando(false)
     }
-  }, []);
-
-  const sincronizarComBling = useCallback(async (): Promise<void> => {
-    setSincronizando(true);
-    setErro(null);
-    try {
-      const resposta = await fetch('/api/bling/sincronizar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!resposta.ok) {
-        throw new Error(`Falha na sincronização com o Bling: ${resposta.status}`);
-      }
-      await carregarProdutosBling();
-    } catch (e) {
-      const mensagem = e instanceof Error ? e.message : 'Erro desconhecido na sincronização.';
-      setErro(mensagem);
-    } finally {
-      setSincronizando(false);
-    }
-  }, [carregarProdutosBling]);
+  }, [])
 
   useEffect(() => {
-    const customizados = carregarProdutosCustomizados();
-    setProdutosCustomizados(customizados);
-    carregarProdutosBling();
-  }, [carregarProdutosBling]);
+    const auth = localStorage.getItem('portal_auth')
+    if (!auth || JSON.parse(auth).tipo !== 'admin') {
+      router.push('/admin/login')
+      return
+    }
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) setProdutosCustom(JSON.parse(saved))
+    carregarProdutos()
+  }, [router, carregarProdutos])
 
-  const produtosCombinados = useMemo<Produto[]>(() => {
-    const mapa = new Map<string, Produto>();
-    produtosBling.forEach((p) => mapa.set(p.id, p));
-    produtosCustomizados.forEach((p) => mapa.set(p.id, p));
-    return Array.from(mapa.values());
-  }, [produtosBling, produtosCustomizados]);
+  const produtos = [
+    ...produtosCustom,
+    ...produtosBling.filter(
+      bling => !produtosCustom.some(c => c.codigo === bling.codigo)
+    )
+  ]
 
-  const categorias = useMemo<string[]>(() => {
-    const set = new Set<string>();
-    produtosCombinados.forEach((p) => set.add(p.categoria));
-    return Array.from(set).sort();
-  }, [produtosCombinados]);
+  const fmt = (v: number) => v?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) ?? 'R$ 0,00'
 
-  const produtosFiltrados = useMemo<Produto[]>(() => {
-    return produtosCombinados.filter((produto) => {
-      if (filtros.apenasAtivos && !produto.ativo) return false;
-      if (filtros.origem !== 'todos' && produto.origem !== filtros.origem) return false;
-      if (filtros.categoria && produto.categoria !== filtros.categoria) return false;
-      if (filtros.busca) {
-        const termo = filtros.busca.toLowerCase();
-        const corresponde =
-          produto.nome.toLowerCase().includes(termo) ||
-          produto.codigo.toLowerCase().includes(termo);
-        if (!corresponde) return false;
-      }
-      return true;
-    });
-  }, [produtosCombinados, filtros]);
+  const listaFiltrada = produtos.filter(p => {
+    const matchesSearch = p.codigo?.toLowerCase().includes(search.toLowerCase()) || 
+                         p.nome?.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory = categoriaSelecionada === '' || p.categoria === categoriaSelecionada
+    return matchesSearch && matchesCategory
+  })
 
-  useEffect(() => {
-    setPaginacao((prev) => ({
-      ...prev,
-      pagina: 1,
-      total: produtosFiltrados.length,
-    }));
-  }, [produtosFiltrados.length]);
+  const totalPaginas = Math.max(1, Math.ceil(listaFiltrada.length / ITENS_POR_PAGINA))
+  const inicio = (pagina - 1) * ITENS_POR_PAGINA
+  const paginaAtual = listaFiltrada.slice(inicio, inicio + ITENS_POR_PAGINA)
+  const categorias = [...new Set(produtos.map(p => p.categoria).filter(Boolean))] as string[]
 
-  const totalPaginas = Math.max(1, Math.ceil(paginacao.total / paginacao.porPagina));
+  const totalEstoque = produtos.reduce((acc, p) => acc + (p.estoque?.saldoVirtualTotal || 0), 0)
+  const totalValorEstoque = produtos.reduce((acc, p) => acc + (p.preco || 0) * (p.estoque?.saldoVirtualTotal || 0), 0)
 
-  const produtosPaginados = useMemo<Produto[]>(() => {
-    const inicio = (paginacao.pagina - 1) * paginacao.porPagina;
-    const fim = inicio + paginacao.porPagina;
-    return produtosFiltrados.slice(inicio, fim);
-  }, [produtosFiltrados, paginacao]);
+  const irParaPagina = (p: number) => {
+    if (p >= 1 && p <= totalPaginas) setPagina(p)
+  }
 
-  const atualizarFiltro = useCallback(<K extends keyof FiltrosProdutos>(
-    chave: K,
-    valor: FiltrosProdutos[K],
-  ): void => {
-    setFiltros((prev) => ({ ...prev, [chave]: valor }));
-  }, []);
+  const handleSync = async () => {
+    setSincronizando(true)
+    try {
+      const res = await fetch('/api/bling/importar-produtos', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Falha na sincronização')
+      alert(`Sucesso! ${data.totalImportado || data.total || 0} produtos sincronizados.`)
+      await carregarProdutos()
+    } catch (err: any) {
+      alert('Erro ao sincronizar: ' + err.message)
+    } finally {
+      setSincronizando(false)
+    }
+  }
 
-  const limparFiltros = useCallback((): void => {
-    setFiltros(filtrosIniciais);
-  }, []);
+  const salvarProduto = (form: ProdutoForm, id?: number) => {
+    let lista: Produto[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const novoProduto = {
+      id: id || -Date.now(),
+      codigo: form.codigo,
+      nome: form.nome,
+      preco: form.preco,
+      estoque: { saldoVirtualTotal: form.estoque },
+      situacao: form.situacao,
+      categoria: form.categoria,
+      tags: form.tags,
+    }
+    if (id) {
+      const idx = lista.findIndex(p => p.id === id)
+      if (idx >= 0) lista[idx] = novoProduto
+    } else {
+      lista.push(novoProduto)
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lista))
+    setProdutosCustom(lista)
+    setModalAberto(false)
+  }
 
-  const irParaPagina = useCallback(
-    (pagina: number): void => {
-      const paginaValida = Math.min(Math.max(1, pagina), totalPaginas);
-      setPaginacao((prev) => ({ ...prev, pagina: paginaValida }));
-    },
-    [totalPaginas],
-  );
-
-  const adicionarProdutoCustomizado = useCallback((produto: Produto): void => {
-    setProdutosCustomizados((prev) => {
-      const atualizado = [...prev.filter((p) => p.id !== produto.id), produto];
-      salvarProdutosCustomizados(atualizado);
-      return atualizado;
-    });
-  }, []);
-
-  const removerProdutoCustomizado = useCallback((id: string): void => {
-    setProdutosCustomizados((prev) => {
-      const atualizado = prev.filter((p) => p.id !== id);
-      salvarProdutosCustomizados(atualizado);
-      return atualizado;
-    });
-  }, []);
-
-  const alternarAtivo = useCallback(
-    (id: string): void => {
-      const produto = produtosCombinados.find((p) => p.id === id);
-      if (!produto) return;
-      const atualizado: Produto = {
-        ...produto,
-        ativo: !produto.ativo,
-        atualizadoEm: new Date().toISOString(),
-      };
-      if (produto.origem === 'customizado') {
-        adicionarProdutoCustomizado(atualizado);
-      } else {
-        const comoCustomizado: Produto = {
-          ...atualizado,
-          origem: 'customizado',
-          sincronizado: false,
-        };
-        adicionarProdutoCustomizado(comoCustomizado);
-      }
-    },
-    [produtosCombinados, adicionarProdutoCustomizado],
-  );
+  if (carregando) return <div className="p-8 text-center">Carregando produtos...</div>
 
   return (
-    <div className="admin-produtos-page">
-      <header className="admin-produtos-header">
-        <h1>Admin - Produtos</h1>
-        <div className="admin-produtos-acoes">
-          <button
-            type="button"
-            onClick={sincronizarComBling}
-            disabled={sincronizando || carregando}
-          >
-            {sincronizando ? 'Sincronizando...' : 'Sincronizar com Bling'}
+    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Package className="text-indigo-600" /> Produtos
+          </h1>
+          <p className="text-sm text-gray-500">{produtos.length} produtos cadastrados</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={handleSync} disabled={sincronizando} className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${sincronizando ? 'bg-gray-100 text-gray-400' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+            {sincronizando ? 'Sincronizando...' : 'Sincronizar'}
           </button>
-          <button
-            type="button"
-            onClick={carregarProdutosBling}
-            disabled={carregando || sincronizando}
-          >
-            {carregando ? 'Carregando...' : 'Recarregar'}
+          <button onClick={() => { setProdutoEditando(undefined); setModalAberto(true) }} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium shadow-sm transition-all">
+            <Plus size={18} /> Novo Produto
           </button>
         </div>
-      </header>
+      </div>
 
-      {erro && (
-        <div className="admin-produtos-erro" role="alert">
-          {erro}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Produtos</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{produtos.length}</p>
         </div>
-      )}
-
-      <section className="admin-produtos-filtros">
-        <div className="filtro-group">
-          <label htmlFor="filtro-busca">Buscar</label>
-          <input
-            id="filtro-busca"
-            type="text"
-            placeholder="Nome ou código..."
-            value={filtros.busca}
-            onChange={(e) => atualizarFiltro('busca', e.target.value)}
-          />
-        </div>
-
-        <div className="filtro-group">
-          <label htmlFor="filtro-categoria">Categoria</label>
-          <select
-            id="filtro-categoria"
-            value={filtros.categoria}
-            onChange={(e) => atualizarFiltro('categoria', e.target.value)}
-          >
-            <option value="">Todas</option>
-            {categorias.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Categorias</p>
+          <select value={categoriaSelecionada} onChange={(e) => { setCategoriaSelecionada(e.target.value); setPagina(1) }} className="w-full mt-1 text-sm border-none p-0 focus:ring-0 bg-transparent font-bold text-gray-900">
+            <option value="">Todas ({categorias.length})</option>
+            {categorias.map(cat => <option key={cat} value={cat}>{cat}</option>)}
           </select>
         </div>
-
-        <div className="filtro-group">
-          <label htmlFor="filtro-origem">Origem</label>
-          <select
-            id="filtro-origem"
-            value={filtros.origem}
-            onChange={(e) =>
-              atualizarFiltro('origem', e.target.value as FiltrosProdutos['origem'])
-            }
-          >
-            <option value="todos">Todos</option>
-            <option value="bling">Bling</option>
-            <option value="customizado">Customizados</option>
-          </select>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Total</p>
+          <p className="text-2xl font-bold text-indigo-600 mt-1">{totalEstoque} un</p>
         </div>
-
-        <div className="filtro-group filtro-checkbox">
-          <label>
-            <input
-              type="checkbox"
-              checked={filtros.apenasAtivos}
-              onChange={(e) => atualizarFiltro('apenasAtivos', e.target.checked)}
-            />
-            Apenas ativos
-          </label>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Valor em Estoque</p>
+          <p className="text-2xl font-bold text-emerald-600 mt-1">{fmt(totalValorEstoque)}</p>
         </div>
+      </div>
 
-        <button type="button" onClick={limparFiltros} className="filtro-limpar">
-          Limpar filtros
-        </button>
-      </section>
-
-      <section className="admin-produtos-tabela">
-        <table>
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Nome</th>
-              <th>Categoria</th>
-              <th>Preço</th>
-              <th>Estoque</th>
-              <th>Origem</th>
-              <th>Status</th>
-              <th>Atualizado</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {carregando && produtosPaginados.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="tabela-vazia">
-                  Carregando produtos...
-                </td>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-50 bg-gray-50/50">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input type="text" value={search} onChange={(e) => { setSearch(e.target.value); setPagina(1) }} placeholder="Buscar por SKU ou nome..." className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50">
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">SKU</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Produto</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Categoria</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Preço</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Estoque</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Ações</th>
               </tr>
-            ) : produtosPaginados.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="tabela-vazia">
-                  Nenhum produto encontrado.
-                </td>
-              </tr>
-            ) : (
-              produtosPaginados.map((produto) => (
-                <tr key={produto.id}>
-                  <td>{produto.codigo}</td>
-                  <td>{produto.nome}</td>
-                  <td>{produto.categoria}</td>
-                  <td>{formatarMoeda(produto.preco)}</td>
-                  <td>{produto.estoque}</td>
-                  <td>
-                    <span className={`origem-badge origem-${produto.origem}`}>
-                      {produto.origem === 'bling' ? 'Bling' : 'Customizado'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${produto.ativo ? 'ativo' : 'inativo'}`}>
-                      {produto.ativo ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td>{formatarData(produto.atualizadoEm)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => alternarAtivo(produto.id)}
-                      className="acao-toggle"
-                    >
-                      {produto.ativo ? 'Desativar' : 'Ativar'}
-                    </button>
-                    {produto.origem === 'customizado' && (
-                      <button
-                        type="button"
-                        onClick={() => removerProdutoCustomizado(produto.id)}
-                        className="acao-remover"
-                      >
-                        Remover
-                      </button>
-                    )}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {paginaAtual.map(prod => (
+                <tr key={prod.id} className="hover:bg-gray-50/50 transition-all group">
+                  <td className="px-6 py-4 text-sm font-mono text-gray-500">{prod.codigo}</td>
+                  <td className="px-6 py-4"><p className="text-sm font-medium text-gray-900">{prod.nome}</p></td>
+                  <td className="px-6 py-4"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{prod.categoria || '—'}</span></td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">{fmt(prod.preco)}</td>
+                  <td className="px-6 py-4"><span className={`text-sm font-medium ${prod.estoque?.saldoVirtualTotal <= 5 ? 'text-red-600' : 'text-gray-900'}`}>{prod.estoque?.saldoVirtualTotal || 0}</span></td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={() => { setProdutoEditando(prod); setModalAberto(true) }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit3 size={18} /></button>
+                      <button disabled={true} className="p-2 text-gray-300 rounded-lg cursor-not-allowed"><Trash2 size={18} /></button>
+                    </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-
-      <footer className="admin-produtos-paginacao">
-        <span>
-          {paginacao.total} produto(s) - página {paginacao.pagina} de {totalPaginas}
-        </span>
-        <div className="paginacao-botoes">
-          <button
-            type="button"
-            onClick={() => irParaPagina(1)}
-            disabled={paginacao.pagina <= 1}
-          >
-            Primeira
-          </button>
-          <button
-            type="button"
-            onClick={() => irParaPagina(paginacao.pagina - 1)}
-            disabled={paginacao.pagina <= 1}
-          >
-            Anterior
-          </button>
-          <button
-            type="button"
-            onClick={() => irParaPagina(paginacao.pagina + 1)}
-            disabled={paginacao.pagina >= totalPaginas}
-          >
-            Próxima
-          </button>
-          <button
-            type="button"
-            onClick={() => irParaPagina(totalPaginas)}
-            disabled={paginacao.pagina >= totalPaginas}
-          >
-            Última
-          </button>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </footer>
+        <div className="p-4 border-t border-gray-50 flex items-center justify-between bg-gray-50/50">
+          <p className="text-sm text-gray-500">Página {pagina} de {totalPaginas}</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => irParaPagina(pagina - 1)} disabled={pagina === 1} className="p-2 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 transition-all"><ChevronLeft size={18} /></button>
+            <button onClick={() => irParaPagina(pagina + 1)} disabled={pagina === totalPaginas} className="p-2 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-50 transition-all"><ChevronRight size={18} /></button>
+          </div>
+        </div>
+      </div>
+      {modalAberto && <ProdutoModal isOpen={modalAberto} onClose={() => setModalAberto(false)} onSave={salvarProduto} produto={produtoEditando} />}
     </div>
-  );
-};
-
-export default AdminProdutosPage;
+  )
+}
