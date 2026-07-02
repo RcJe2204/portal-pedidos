@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.json({ error: 'Código não encontrado na URL. Inicie pelo link /auth' }, { status: 400 });
+    return NextResponse.json({ error: 'Código não encontrado na URL.' }, { status: 400 });
   }
 
   try {
@@ -39,18 +39,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro no Bling', details: data }, { status: response.status });
     }
 
-    // Salvando no banco usando 'as any' para evitar erros de tipagem no build
+    // Buscamos o primeiro lojista (você) para atrelar a integração, já que seu schema exige lojistaId
+    const lojista = await prisma.lojista.findFirst();
+    
+    if (!lojista) {
+      return NextResponse.json({ error: 'Nenhum lojista encontrado no banco para associar a integração.' }, { status: 500 });
+    }
+
+    // Salvando exatamente com os nomes do seu schema: 'tipo' e 'token'
     await (prisma as any).integracao.upsert({
-      where: { tipo: 'BLING' },
+      where: { id: 'bling-integration-id' }, // Usando um ID fixo para a integração principal
       update: {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        token: data.access_token,
         updatedAt: new Date(),
       },
       create: {
+        id: 'bling-integration-id',
         tipo: 'BLING',
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        token: data.access_token,
+        lojistaId: lojista.id, // Campo obrigatório no seu schema
       },
     });
 
