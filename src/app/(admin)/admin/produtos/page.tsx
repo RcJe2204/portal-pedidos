@@ -13,7 +13,6 @@ interface Produto {
   estoque: { saldoVirtualTotal: number }
   situacao: string
   categoria?: string
-  tags?: string
 }
 
 interface ProdutoForm {
@@ -30,7 +29,7 @@ const ITENS_POR_PAGINA = 30
 
 export default function AdminProdutosPage() {
   const router = useRouter()
-  const [produtosBling, setProdutosBling] = useState<Produto[]>([])
+  const [produtos, setProdutos] = useState<Produto[]>([])
   const [search, setSearch] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [pagina, setPagina] = useState(1)
@@ -42,9 +41,8 @@ export default function AdminProdutosPage() {
   const carregarProdutos = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/produtos')
-      if (!res.ok) throw new Error('Erro ao carregar')
       const data = await res.json()
-      setProdutosBling(data)
+      setProdutos(data)
     } catch (err) {
       console.error(err)
     } finally {
@@ -63,7 +61,7 @@ export default function AdminProdutosPage() {
 
   const fmt = (v: number) => v?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) ?? 'R$ 0,00'
 
-  const listaFiltrada = produtosBling.filter(p => {
+  const listaFiltrada = produtos.filter(p => {
     const matchesSearch = p.codigo?.toLowerCase().includes(search.toLowerCase()) || 
                          p.nome?.toLowerCase().includes(search.toLowerCase())
     const matchesCategory = categoriaSelecionada === '' || p.categoria === categoriaSelecionada
@@ -73,17 +71,17 @@ export default function AdminProdutosPage() {
   const totalPaginas = Math.max(1, Math.ceil(listaFiltrada.length / ITENS_POR_PAGINA))
   const inicio = (pagina - 1) * ITENS_POR_PAGINA
   const paginaAtual = listaFiltrada.slice(inicio, inicio + ITENS_POR_PAGINA)
-  const categorias = [...new Set(produtosBling.map(p => p.categoria).filter(Boolean))] as string[]
+  const categorias = [...new Set(produtos.map(p => p.categoria).filter(Boolean))] as string[]
 
-  const totalEstoque = produtosBling.reduce((acc, p) => acc + (p.estoque?.saldoVirtualTotal || 0), 0)
-  const totalValorEstoque = produtosBling.reduce((acc, p) => acc + (p.preco || 0) * (p.estoque?.saldoVirtualTotal || 0), 0)
+  const totalEstoque = produtos.reduce((acc, p) => acc + (p.estoque?.saldoVirtualTotal || 0), 0)
+  const totalValorEstoque = produtos.reduce((acc, p) => acc + (p.preco || 0) * (p.estoque?.saldoVirtualTotal || 0), 0)
 
   const handleSync = async () => {
     setSincronizando(true)
     try {
       const res = await fetch('/api/admin/produtos', { method: 'POST' })
       if (!res.ok) throw new Error('Falha na sincronização')
-      alert('Sincronização concluída com sucesso!')
+      alert('Sincronização concluída!')
       carregarProdutos()
     } catch (err: any) {
       alert(err.message)
@@ -115,10 +113,9 @@ export default function AdminProdutosPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Package className="text-indigo-600" />
-            Produtos
+            <Package className="text-indigo-600" /> Produtos
           </h1>
-          <p className="text-sm text-gray-500">{produtosBling.length} produtos cadastrados</p>
+          <p className="text-sm text-gray-500">{produtos.length} produtos cadastrados</p>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleSync} disabled={sincronizando} className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${sincronizando ? 'bg-gray-100 text-gray-400' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
@@ -133,7 +130,7 @@ export default function AdminProdutosPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Produtos</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{produtosBling.length}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{produtos.length}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Categorias</p>
@@ -180,9 +177,7 @@ export default function AdminProdutosPage() {
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">{fmt(prod.preco)}</td>
                   <td className="px-6 py-4"><span className={`text-sm font-medium ${prod.estoque?.saldoVirtualTotal <= 5 ? 'text-red-600' : 'text-gray-900'}`}>{prod.estoque?.saldoVirtualTotal || 0}</span></td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button onClick={() => { setProdutoEditando(prod); setModalAberto(true) }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit3 size={18} /></button>
-                    </div>
+                    <button onClick={() => { setProdutoEditando(prod); setModalAberto(true) }} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit3 size={18} /></button>
                   </td>
                 </tr>
               ))}
