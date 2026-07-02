@@ -1,12 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const clientId = '9fa182b9d7809d2561e16cfd6db8f06e8bd3c0a8';
-  // O redirect_uri deve ser exatamente o caminho da sua pasta callback
-  const redirectUri = 'http://localhost:3000/api/bling/callback'; 
-  const state = '123';
+const BLING_CLIENT_ID = process.env.BLING_CLIENT_ID;
+const BLING_REDIRECT_URI = process.env.BLING_REDIRECT_URI;
+const BLING_AUTH_URL = "https://www.bling.com.br/Api/v3/oauth/authorize";
 
-  const url = `https://www.bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+export async function GET(request: NextRequest) {
+  if (!BLING_CLIENT_ID) {
+    return NextResponse.json(
+      { error: "BLING_CLIENT_ID não configurado." },
+      { status: 500 }
+    );
+  }
 
-  return NextResponse.redirect(url);
+  if (!BLING_REDIRECT_URI) {
+    return NextResponse.json(
+      { error: "BLING_REDIRECT_URI não configurado." },
+      { status: 500 }
+    );
+  }
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: BLING_CLIENT_ID,
+    redirect_uri: BLING_REDIRECT_URI,
+  });
+
+  const authUrl = `${BLING_AUTH_URL}?${params.toString()}`;
+
+  return NextResponse.redirect(authUrl);
 }
