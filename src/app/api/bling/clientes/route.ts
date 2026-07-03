@@ -7,82 +7,101 @@ export async function GET(request: NextRequest) {
 
   if (!accessToken) return NextResponse.json({ error: 'Token não encontrado.' }, { status: 401 })
 
-  async function fetchClientesBling(token: string) {
-    let todos: any[] = []
+  async function fetchESalvarClientesBling(token: string) {
+    let todosSalvos: any[] = []
     let pagina = 1
     let temMais = true
+    
     try {
       while (temMais && pagina <= 3) {
         const url = `https://api.bling.com.br/Api/v3/contatos?limite=100&pagina=${pagina}`
         const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         })
+        
         if (!res.ok) { temMais = false; break; }
+        
         const json = await res.json()
         const lista = json.data || []
+        
         if (lista.length === 0) { 
           temMais = false 
         } else {
-          const formatados = lista.map((c: any) => ({
-            id: c.id,
-            nome: c.nome,
-            numeroDocumento: c.numeroDocumento || '',
-            email: c.email || '---',
-            telefone: c.telefone || c.celular || '---',
-            cidade: c.endereco?.municipio || '---',
-            situacao: (c.situacao === 'A' || c.situacao === 1 || String(c.situacao) === '1') ? 'A' : 'I',
-            origem: 'bling'
-          }))
-          todos = [...todos, ...formatados]
+          for (const c of lista) {
+            // SALVAMENTO NO BANCO USANDO O NOVO CAMPO idBling
+            const lojista = await prisma.lojista.upsert({
+              where: { idBling: String(c.id) },
+              update: {
+                nome: c.nome,
+                email: c.email || `${c.id}@bling.com.br`,
+                cnpj: c.numeroDocumento || '',
+                telefone: c.telefone || c.celular || '',
+                cidade: c.endereco?.municipio || '',
+                status: 'ativo'
+              },
+              create: {
+                idBling: String(c.id),
+                nome: c.nome,
+                email: c.email || `${c.id}@bling.com.br`,
+                cnpj: c.numeroDocumento || '',
+                telefone: c.telefone || c.celular || '',
+                cidade: c.endereco?.municipio || '',
+                status: 'ativo',
+                senha: '123' // Senha padrão inicial
+              }
+            })
+            todosSalvos.push(lojista)
+          }
           pagina++
         }
       }
-      return { error: false, data: todos }
+      return { error: false, data: todosSalvos }
     } catch (err) { 
+      console.error('Erro na sincronização de lojistas:', err)
       return { error: true, data: [] } 
     }
   }
 
-  const result = await fetchClientesBling(accessToken)
+  // Executa a busca e o salvamento
+  const result = await fetchESalvarClientesBling(accessToken)
   
-  // Busca os lojistas locais. O campo no banco é 'status', mas enviamos como 'situacao' para o front
-  const lojistasLocais = await prisma.lojista.findMany({ orderBy: { createdAt: 'desc' } })
+  // Busca todos os lojistas que agora estão garantidos no banco
+  const lojistasNoBanco = await prisma.lojista.findMany({ 
+    orderBy: { createdAt: 'desc' } 
+  })
 
-  const lojistasFormatados = lojistasLocais.map(l => ({
+  const formatadosParaOFront = lojistasNoBanco.map(l => ({
     id: l.id,
     nome: l.nome,
     email: l.email || '---',
     numeroDocumento: l.cnpj || '',
-    situacao: l.status || 'ativo', // Mapeia 'status' do banco para 'situacao' do front
+    situacao: l.status === 'ativo' ? 'A' : 'I',
     cidade: l.cidade || 'Local',
     telefone: l.telefone || '---',
-    origem: 'local'
+    origem: l.idBling ? 'bling' : 'local'
   }))
 
-  return NextResponse.json({ clientes: [...lojistasFormatados, ...result.data] })
+  return NextResponse.json({ clientes: formatadosParaOFront })
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
     const novo = await prisma.lojista.create({
       data: {
         nome: body.nome,
-        email: body.email || "", // Email é obrigatório e único no seu schema
+        email: body.email || "",
         cnpj: body.numeroDocumento || body.cnpj || '',
         telefone: body.telefone || '',
         cidade: body.cidade || '',
-        status: body.situacao || 'ativo', // Usa 'status' conforme o schema.prisma
-        senha: body.senha || "", // Senha é obrigatória no seu schema (String)
+        status: body.situacao || 'ativo',
+        senha: body.senha || "123",
         saldo: 0,
         acessoPortal: false
       }
     })
-
     return NextResponse.json({ success: true, cliente: novo })
   } catch (error: any) {
-    console.error('Erro ao salvar localmente:', error)
     return NextResponse.json({ error: 'Erro ao salvar cliente no banco local.' }, { status: 500 })
   }
 }

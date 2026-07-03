@@ -9,6 +9,7 @@ datasource db {
 
 model Lojista {
   id           String   @id @default(uuid())
+  idBling      String?  @unique // Adicionado para identificar o contato no Bling
   nome         String
   email        String   @unique
   cnpj         String?  @unique
@@ -20,7 +21,6 @@ model Lojista {
   acessoPortal Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
   pedidos       Pedido[]
   pedidosUpload PedidoUpload[]
   listaPrecos   ListaPreco[]
@@ -37,7 +37,6 @@ model Pedido {
   total      Float?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
   lojista  Lojista       @relation(fields: [lojistaId], references: [id])
 }
 
@@ -60,12 +59,11 @@ model Produto {
   descricao   String?
   preco       Float    @default(0)
   estoque     Int      @default(0)
-  situacao    String   @default("A") // Adicionado agora para corrigir o erro
+  situacao    String   @default("A")
   imagemUrl   String?
   sku         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   lojista    Lojista       @relation(fields: [lojistaId], references: [id])
   categoria  Categoria?    @relation(fields: [categoriaId], references: [id])
   precos     PrecoLojista[]
@@ -92,6 +90,7 @@ model Integracao {
 
 model Categoria {
   id        String   @id @default(uuid())
+  idBling   String?  @unique // Adicionado para manter o vínculo com o Bling
   nome      String
   parentId  String?
   createdAt DateTime @default(now())
@@ -108,7 +107,6 @@ model PrecoLojista {
   preco      Float
   createdAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   lojista Lojista @relation(fields: [lojistaId], references: [id])
   produto Produto @relation(fields: [produtoId], references: [id])
 }
