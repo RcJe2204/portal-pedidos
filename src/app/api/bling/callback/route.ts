@@ -49,15 +49,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro na troca do token', detalhes: data }, { status: response.status });
     }
 
-    // Busca o lojista
-    const lojista = await prisma.lojista.findFirst();
+    // BUSCA OU CRIA UM LOJISTA MESTRE (Para evitar erro de banco vazio)
+    let lojista = await prisma.lojista.findFirst();
     
     if (!lojista) {
-      return NextResponse.json({ error: 'Nenhum lojista encontrado no banco.' }, { status: 500 });
+      lojista = await prisma.lojista.create({
+        data: {
+          nome: "Administrador Sistema",
+          email: "admin@sistema.com",
+          senha: "123",
+          status: "ativo",
+          acessoPortal: true
+        }
+      });
     }
 
-    // Salva a integração
-    await (prisma as any).integracao.upsert({
+    // SALVA A INTEGRAÇÃO VINCULADA AO LOJISTA
+    await prisma.integracao.upsert({
       where: { id: 'bling-main-auth' },
       update: {
         token: data.access_token,
@@ -71,9 +79,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Redireciona para o admin
     return NextResponse.redirect(new URL('/admin', request.url));
 
   } catch (error: any) {
+    console.error('Erro no callback:', error);
     return NextResponse.json({ 
       error: 'Erro crítico ao processar token', 
       mensagem: error.message 
