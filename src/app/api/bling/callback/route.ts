@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro na troca do token', detalhes: data }, { status: response.status });
     }
 
-    // BUSCA OU CRIA UM LOJISTA MESTRE (Para evitar erro de banco vazio)
+    // BUSCA OU CRIA UM LOJISTA MESTRE (Para evitar erro de banco vazio após o reset)
     let lojista = await prisma.lojista.findFirst();
     
     if (!lojista) {
