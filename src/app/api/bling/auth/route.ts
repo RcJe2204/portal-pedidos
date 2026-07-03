@@ -1,4 +1,6 @@
+// Forçando redeploy para carregar variáveis de ambiente
 import { NextRequest, NextResponse } from "next/server";
+// ... resto do código igual
 
 // Força a rota a ser sempre dinâmica (essencial para AWS Amplify)
 export const dynamic = 'force-dynamic';
