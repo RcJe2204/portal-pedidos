@@ -1,6 +1,3 @@
-// Portal de Pedidos - Schema Prisma
-// Banco: PostgreSQL
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,230 +7,100 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================
-// Lojista
-// ============================================================
 model Lojista {
-  id          String   @id @default(uuid())
-  nome        String
-  email       String   @unique
-  senha       String
-  cnpj        String?  @unique
-  telefone    String?
-  logoUrl     String?
-  apiKey      String?  @unique
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  tokens      BlingToken[]
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senha     String
+  documento String?  @unique
+  saldo     Decimal  @default(0) @db.Decimal(10, 2)
+  
+  // Relações
+  blingTokens BlingToken[]
   pedidos     Pedido[]
-  precos      PrecoLojista[]
+  produtos    Produto[]
   integracoes Integracao[]
   uploads     PedidoUpload[]
 
-  @@map("lojistas")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// ============================================================
-// BlingToken (OAuth2)
-// ============================================================
 model BlingToken {
   id           String   @id @default(uuid())
-  lojistaId    String   @map("lojista_id")
-  accessToken  String   @map("access_token") @db.Text
-  refreshToken String   @map("refresh_token") @db.Text
-  expiresAt    DateTime @map("expires_at")
-  scope        String?
-  tokenType    String?  @map("token_type")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  // Relacionamentos
+  lojistaId    String
   lojista      Lojista  @relation(fields: [lojistaId], references: [id], onDelete: Cascade)
-
-  @@map("bling_tokens")
+  
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// ============================================================
-// Pedido
-// ============================================================
 model Pedido {
-  id          String    @id @default(uuid())
-  lojistaId   String    @map("lojista_id")
-  idBling     String?   @map("id_bling")
+  id          String   @id @default(uuid())
+  lojistaId   String
+  lojista     Lojista  @relation(fields: [lojistaId], references: [id])
+  
+  idBling     String?  @unique
   numero      String?
-  clienteNome String?   @map("cliente_nome")
-  clienteDoc  String?   @map("cliente_doc")
-  valorTotal  Decimal   @default(0) @map("valor_total") @db.Decimal(12, 2)
-  status      String    @default("PENDENTE")
-  observacao  String?   @db.Text
-  dataPedido  DateTime? @map("data_pedido")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  lojista     Lojista      @relation(fields: [lojistaId], references: [id], onDelete: Cascade)
+  total       Decimal  @default(0) @db.Decimal(10, 2) // Mantido como 'total'
+  status      String   @default("PENDENTE")
+  plataforma  String?  @default("Bling") // Mantido como 'plataforma'
+  
   itens       ItemPedido[]
-  uploadId    String?      @map("upload_id")
-  upload      PedidoUpload? @relation(fields: [uploadId], references: [id], onDelete: SetNull)
-
-  @@index([lojistaId])
-  @@index([idBling])
-  @@index([numero])
-  @@map("pedidos")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// ============================================================
-// ItemPedido
-// ============================================================
 model ItemPedido {
-  id         String  @id @default(uuid())
-  pedidoId   String  @map("pedido_id")
-  produtoId  String? @map("produto_id")
-  sku        String?
-  descricao  String?
-  quantidade Int     @default(1)
-  precoUnit  Decimal @default(0) @map("preco_unit") @db.Decimal(12, 2)
-  desconto   Decimal @default(0) @db.Decimal(12, 2)
-  subtotal   Decimal @default(0) @db.Decimal(12, 2)
-
-  // Relacionamentos
-  pedido     Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  produto    Produto? @relation(fields: [produtoId], references: [id], onDelete: SetNull)
-
-  @@index([pedidoId])
-  @@index([produtoId])
-  @@map("itens_pedido")
+  id            String  @id @default(uuid())
+  pedidoId      String
+  pedido        Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  
+  produtoId     String
+  produto       Produto @relation(fields: [produtoId], references: [id])
+  
+  quantidade    Int
+  precoUnitario Decimal @db.Decimal(10, 2)
 }
 
-// ============================================================
-// Produto (AJUSTADO para evitar erros de migração)
-//  - sku: String? (opcional)
-//  - precoBase: @default(0)
-// ============================================================
 model Produto {
   id          String   @id @default(uuid())
-  sku         String?  @unique
+  sku         String?  @unique // Opcional para não dar erro em produtos antigos
   nome        String
   descricao   String?  @db.Text
-  precoBase   Decimal  @default(0) @map("preco_base") @db.Decimal(12, 2)
-  estoque     Int      @default(0)
-  ativo       Boolean  @default(true)
-  categoriaId String?  @map("categoria_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  precoBase   Decimal  @default(0) @db.Decimal(10, 2) // Com default 0
+  
+  lojistaId   String?
+  lojista     Lojista? @relation(fields: [lojistaId], references: [id])
+  
+  itensPedido ItemPedido[]
 
-  // Relacionamentos
-  categoria   Categoria?     @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
-  itens       ItemPedido[]
-  precos      PrecoLojista[]
-
-  @@index([categoriaId])
-  @@map("produtos")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// ============================================================
-// Categoria
-// ============================================================
-model Categoria {
-  id        String    @id @default(uuid())
-  nome      String
-  slug      String    @unique
-  descricao String?   @db.Text
-  ativo     Boolean   @default(true)
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  produtos  Produto[]
-
-  @@map("categorias")
-}
-
-// ============================================================
-// ListaPreco
-// ============================================================
-model ListaPreco {
-  id          String   @id @default(uuid())
-  nome        String
-  descricao   String?  @db.Text
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  precos     PrecoLojista[]
-
-  @@map("listas_preco")
-}
-
-// ============================================================
-// PrecoLojista
-// ============================================================
-model PrecoLojista {
-  id           String   @id @default(uuid())
-  lojistaId    String   @map("lojista_id")
-  produtoId    String   @map("produto_id")
-  listaPrecoId String?  @map("lista_preco_id")
-  preco        Decimal  @default(0) @db.Decimal(12, 2)
-  descontoMax  Decimal  @default(0) @map("desconto_max") @db.Decimal(12, 2)
-  ativo        Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  lojista      Lojista     @relation(fields: [lojistaId], references: [id], onDelete: Cascade)
-  produto      Produto     @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  listaPreco   ListaPreco? @relation(fields: [listaPrecoId], references: [id], onDelete: SetNull)
-
-  @@unique([lojistaId, produtoId, listaPrecoId])
-  @@index([lojistaId])
-  @@index([produtoId])
-  @@index([listaPrecoId])
-  @@map("precos_lojista")
-}
-
-// ============================================================
-// Integracao
-// ============================================================
 model Integracao {
-  id         String   @id @default(uuid())
-  lojistaId  String   @map("lojista_id")
-  tipo       String
-  config     Json?
-  ativo      Boolean  @default(true)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  lojista    Lojista  @relation(fields: [lojistaId], references: [id], onDelete: Cascade)
-
-  @@index([lojistaId])
-  @@map("integracoes")
+  id        String   @id @default(uuid())
+  lojistaId String
+  lojista   Lojista  @relation(fields: [lojistaId], references: [id])
+  tipo      String   @default("BLING")
+  config    Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// ============================================================
-// PedidoUpload
-// ============================================================
 model PedidoUpload {
-  id         String   @id @default(uuid())
-  lojistaId  String   @map("lojista_id")
-  nomeArquivo String  @map("nome_arquivo")
-  formato    String   @default("CSV")
-  status     String   @default("PENDENTE")
-  total      Int      @default(0)
-  processados Int     @default(0) @map("processados")
-  erros      Int      @default(0)
-  log        String?  @db.Text
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  // Relacionamentos
-  lojista    Lojista  @relation(fields: [lojistaId], references: [id], onDelete: Cascade)
-  pedidos    Pedido[]
-
-  @@index([lojistaId])
-  @@map("pedidos_upload")
+  id        String   @id @default(uuid())
+  lojistaId String
+  lojista   Lojista  @relation(fields: [lojistaId], references: [id])
+  status    String   @default("PROCESSANDO")
+  arquivoUrl String
+  
+  createdAt DateTime @default(now())
 }
