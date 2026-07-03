@@ -7,6 +7,9 @@ frontend:
         - npx prisma generate
     build:
       commands:
+        - echo "BLING_CLIENT_ID=$BLING_CLIENT_ID" >> .env
+        - echo "BLING_CLIENT_SECRET=$BLING_CLIENT_SECRET" >> .env
+        - echo "BLING_REDIRECT_URI=$BLING_REDIRECT_URI" >> .env
         - npm run build
   artifacts:
     baseDirectory: .next
