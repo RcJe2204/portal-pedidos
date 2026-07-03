@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const clientId = "9fa182b9d7809d2561e16cfd6db8f06e8bd3c0a8";
-  const redirectUri = "https://main.d66m6u9ly2t4o.amplifyapp.com/api/bling/callback";
+ const redirectUri = "https://main.d66m6u9ly2t4o.amplifyapp.com/api/bling/callback";
   
   // Adicionamos o parâmetro 'scope' com as permissões necessárias
   const params = new URLSearchParams({
