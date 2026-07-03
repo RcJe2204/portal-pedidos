@@ -1,18 +1,21 @@
 import { PrismaClient } from '@prisma/client'
 
-// Endereço oficial do seu banco na Amazon RDS
-const DB_URL = "postgresql://postgres:Rcje12345!@portal-pedidos-db.cvuim8mgqyf7.sa-east-1.rds.amazonaws.com:5432/postgres"
-
+// 1. Definição do tipo para o objeto global
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
+// 2. Instância do Prisma
+// Ele prioriza a variável de ambiente da AWS Amplify. 
+// Se não existir, ele falhará com um erro claro em vez de expor sua senha.
 export const prisma = globalForPrisma.prisma || new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   datasources: {
     db: {
-      url: process.env.DATABASE_URL || DB_URL
+      url: process.env.DATABASE_URL
     }
   }
 })
 
+// 3. Previne múltiplas instâncias em desenvolvimento
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export default prisma
