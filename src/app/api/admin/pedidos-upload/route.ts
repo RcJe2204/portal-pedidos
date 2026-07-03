@@ -9,7 +9,7 @@ export async function GET() {
     const uploads = await prisma.pedidoUpload.findMany({
       include: {
         lojista: {
-          select: { nome: true, cnpj: true }
+          select: { nome: true, documento: true } // Ajustado de cnpj para documento conforme seu schema
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -43,16 +43,18 @@ export async function POST(request: NextRequest) {
 
     await writeFile(fullPath, buffer);
 
+    // O campo 'arquivoUrl' agora corresponde exatamente ao seu schema.prisma
     const registro = await prisma.pedidoUpload.create({
       data: {
         arquivoUrl: urlRelativa,
         lojistaId: lojistaId,
-        status: 'pendente',
+        status: 'PENDENTE', // Ajustado para maiúsculo para manter padrão
       },
     });
 
     return NextResponse.json(registro, { status: 201 });
   } catch (error) {
+    console.error("Erro no upload:", error);
     return NextResponse.json({ error: 'Erro no upload' }, { status: 500 });
   }
 }
