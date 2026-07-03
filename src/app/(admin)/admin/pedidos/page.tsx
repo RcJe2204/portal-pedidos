@@ -1,116 +1,45 @@
-import prisma from '@/lib/prisma'
-import Link from 'next/link'
-export const dynamic = 'force-dynamic';
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
-async function getPedidos() {
-  const pedidos = await prisma.pedido.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { lojista: { select: { nome: true } } }
-  })
-  return pedidos
-}
+export async function GET() {
+  try {
+    const produtos = await prisma.produto.findMany({
+      // Removido o include de categoria que não existe no schema atual
+      orderBy: { nome: 'asc' },
+    });
 
-function formatarMoeda(valor: any) {
-  // Convertemos para Number pois o Prisma retorna Decimal como objeto
-  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+    const resultado = produtos.map(p => ({
+      id: p.id,
+      sku: p.sku,
+      nome: p.nome,
+      precoBase: Number(p.precoBase || 0),
+      // Retornamos uma string fixa ou nula para não quebrar o frontend
+      categoria: "Geral" 
+    }));
 
-function formatarData(data: Date) {
-  return data.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-function statusBadge(status: string) {
-  const cores: Record<string, string> = {
-    'aguardando autorização': 'bg-yellow-100 text-yellow-800',
-    autorizado: 'bg-blue-100 text-blue-800',
-    'em embalagem': 'bg-purple-100 text-purple-800',
-    finalizado: 'bg-green-100 text-green-800',
-    'PENDENTE': 'bg-yellow-100 text-yellow-800',
+    return NextResponse.json(resultado);
+  } catch (error: any) {
+    console.error("Erro ao buscar produtos:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return cores[status] || 'bg-gray-100 text-gray-800'
 }
 
-type PedidoComLojista = {
-  id: string
-  lojista: { nome: string }
-  valorTotal: any // Alterado de total para valorTotal
-  status: string
-  numero: string | null // Alterado de plataforma para numero (que existe no novo schema)
-  createdAt: Date
-}
+export async function POST(request: NextRequest) {
+  try {
+    const data = await request.json();
 
-export default async function AdminPedidosPage() {
-  const pedidos = await getPedidos()
+    const produto = await prisma.produto.create({
+      data: {
+        nome: data.nome,
+        sku: data.sku,
+        precoBase: data.precoBase || 0,
+        descricao: data.descricao,
+      },
+    });
 
-  return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Pedidos Recebidos</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Total de {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''}
-        </p>
-      </div>
-
-      {pedidos.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed border-slate-300 p-12 text-center">
-          <p className="text-slate-500 text-lg">Nenhum pedido recebido ainda</p>
-          <p className="text-slate-400 text-sm mt-1">
-            Os pedidos enviados pelos lojistas aparecerão aqui
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Lojista</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Nº Pedido</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Valor</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Data</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
-              {pedidos.map((pedido: any) => (
-                <tr key={pedido.id} className="hover:bg-slate-50 transition">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                    {pedido.lojista.nome}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
-                    {pedido.numero || '—'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-900 font-semibold">
-                    {formatarMoeda(pedido.valorTotal)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge(pedido.status)}`}>
-                      {pedido.status.charAt(0).toUpperCase() + pedido.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
-                    {formatarData(pedido.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/pedidos/${pedido.id}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800 transition"
-                    >
-                      Detalhes →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
+    return NextResponse.json(produto, { status: 201 });
+  } catch (error: any) {
+    console.error("Erro ao criar produto:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
