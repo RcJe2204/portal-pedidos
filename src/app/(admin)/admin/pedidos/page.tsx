@@ -10,9 +10,9 @@ async function getPedidos() {
   return pedidos
 }
 
-function formatarMoeda(valor: number | null) {
-  // Aqui corrigimos para aceitar valor nulo
-  return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function formatarMoeda(valor: any) {
+  // Convertemos para Number pois o Prisma retorna Decimal como objeto
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 function formatarData(data: Date) {
@@ -31,6 +31,7 @@ function statusBadge(status: string) {
     autorizado: 'bg-blue-100 text-blue-800',
     'em embalagem': 'bg-purple-100 text-purple-800',
     finalizado: 'bg-green-100 text-green-800',
+    'PENDENTE': 'bg-yellow-100 text-yellow-800',
   }
   return cores[status] || 'bg-gray-100 text-gray-800'
 }
@@ -38,9 +39,9 @@ function statusBadge(status: string) {
 type PedidoComLojista = {
   id: string
   lojista: { nome: string }
-  total: number | null // Aqui avisamos que o total pode ser nulo
+  valorTotal: any // Alterado de total para valorTotal
   status: string
-  plataforma: string | null
+  numero: string | null // Alterado de plataforma para numero (que existe no novo schema)
   createdAt: Date
 }
 
@@ -69,7 +70,7 @@ export default async function AdminPedidosPage() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Lojista</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Plataforma</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Nº Pedido</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Valor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">Data</th>
@@ -77,16 +78,16 @@ export default async function AdminPedidosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
-              {pedidos.map((pedido: PedidoComLojista) => (
+              {pedidos.map((pedido: any) => (
                 <tr key={pedido.id} className="hover:bg-slate-50 transition">
                   <td className="px-4 py-3 text-sm font-medium text-slate-900">
                     {pedido.lojista.nome}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-500">
-                    {pedido.plataforma || '—'}
+                    {pedido.numero || '—'}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-900 font-semibold">
-                    {formatarMoeda(pedido.total)}
+                    {formatarMoeda(pedido.valorTotal)}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge(pedido.status)}`}>
