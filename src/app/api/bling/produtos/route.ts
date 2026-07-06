@@ -3,27 +3,17 @@ import prisma from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. BUSCA NA TABELA CORRETA (integracao)
-    // Ajuste: Usamos findFirst com o campo 'tipo' que existe no seu schema
-    const tokenDb = await prisma.integracao.findFirst({
-      where: { tipo: 'BLING' }
-    })
+    const tokenDb = await prisma.blingToken.findFirst()
 
-    if (!tokenDb || !tokenDb.token) {
+    if (!tokenDb || !tokenDb.accessToken) {
       return NextResponse.json({
         error: 'Bling não conectado. Vá em Configurações e conecte o Bling.',
         precisaReconectar: true
       }, { status: 401 })
     }
 
-    // No seu schema o campo chama-se 'token'
-    const accessToken = tokenDb.token
+    const accessToken = tokenDb.accessToken
 
-    // 2. RENOVAÇÃO AUTOMÁTICA
-    // Nota: A lógica de refresh foi removida pois os campos 'refreshToken' e 'expiresIn' 
-    // não existem no seu modelo Integracao do schema.prisma atual.
-
-    // 3. BUSCA DE PRODUTOS COM LOOP DE PÁGINAS (Para trazer todos os 272)
     let todosProdutos: any[] = []
     let pagina = 1
 
@@ -51,7 +41,7 @@ export async function GET(request: NextRequest) {
       todosProdutos = [...todosProdutos, ...produtos]
       pagina++
 
-      if (pagina > 50) break // Segurança para evitar loop infinito
+      if (pagina > 50) break 
     }
 
     return NextResponse.json({ data: todosProdutos })

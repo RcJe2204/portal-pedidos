@@ -13,10 +13,7 @@ export async function GET(
     }
 
     const lojista = await prisma.lojista.findUnique({
-      where: { id },
-      include: {
-        listaPrecos: true // Corrigido para o plural conforme schema
-      }
+      where: { id }
     });
 
     if (!lojista) {
@@ -43,15 +40,11 @@ export async function PUT(
 
     const body = await request.json();
     
-    // Ajustado para usar os campos reais do schema (status em vez de situacao)
     const lojista = await prisma.lojista.update({
       where: { id: id },
       data: {
         nome: body.nome,
-        cnpj: body.cnpj,
-        cidade: body.cidade,
-        status: body.status || body.situacao, // Mapeia situacao para status se necessário
-        telefone: body.telefone,
+        documento: body.cnpj ?? body.documento,
         email: body.email,
       }
     });
@@ -74,7 +67,7 @@ export async function PATCH(
     const lojista = await prisma.lojista.update({
       where: { id: id },
       data: {
-        acessoPortal: body.acessoPortal
+        saldo: body.saldo
       }
     });
 
@@ -91,8 +84,6 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Corrigido nomes de modelos e campos conforme o schema.prisma
-    await prisma.precoLojista.deleteMany({ where: { lojistaId: id } });
     await prisma.pedidoUpload.deleteMany({ where: { lojistaId: id } });
     await prisma.lojista.delete({ where: { id: id } });
 

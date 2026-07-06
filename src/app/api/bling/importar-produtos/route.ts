@@ -26,48 +26,35 @@ export async function POST(request: NextRequest) {
       }
 
       for (const p of produtosBling) {
-        // 1. TRATAR CATEGORIA
-        let categoriaId = null;
-        if (p.categoria?.id) {
-          const cat = await prisma.categoria.upsert({
-            where: { idBling: String(p.categoria.id) },
-            update: { nome: p.categoria.nome || 'Sem Nome' },
-            create: { idBling: String(p.categoria.id), nome: p.categoria.nome || 'Sem Nome' }
-          });
-          categoriaId = cat.id;
-        }
+        const sku = String(p.codigo || p.id);
 
-        // 2. BUSCAR ESTOQUE REAL
         const resEstoque = await fetch(`https://api.bling.com.br/Api/v3/estoques/saldos?idsProdutos[]=${p.id}`, {
           headers: { 'Authorization': `Bearer ${integracao.token}` },
         });
         const estoqueData = await resEstoque.json();
         const saldoReal = estoqueData.data?.[0]?.saldoVirtualTotal || 0;
 
-        // 3. SALVAR PRODUTO COM TUDO VINCULADO
         await prisma.produto.upsert({
-          where: { codigo: String(p.codigo || p.id) },
+          where: { sku },
           update: {
             nome: p.nome,
-            preco: p.preco || 0,
+            descricao: p.descricao || null,
+            precoBase: p.preco || 0,
             estoque: Math.floor(saldoReal),
-            categoriaId: categoriaId,
-            situacao: p.situacao || 'A'
           },
           create: {
-            codigo: String(p.codigo || p.id),
+            sku,
             nome: p.nome,
-            preco: p.preco || 0,
+            descricao: p.descricao || null,
+            precoBase: p.preco || 0,
             estoque: Math.floor(saldoReal),
-            categoriaId: categoriaId,
-            situacao: p.situacao || 'A',
             lojistaId: integracao.lojistaId,
           },
         });
         totalSalvos++;
       }
       pagina++;
-      if (pagina > 10) break; 
+      if (pagina > 10) break;
     }
 
     return NextResponse.json({ success: true, total: totalSalvos });
