@@ -10,6 +10,8 @@ frontend:
         - echo "BLING_CLIENT_ID=$BLING_CLIENT_ID" >> .env
         - echo "BLING_CLIENT_SECRET=$BLING_CLIENT_SECRET" >> .env
         - echo "BLING_REDIRECT_URI=$BLING_REDIRECT_URI" >> .env
+        - echo "DATABASE_URL=$DATABASE_URL" >> .env
+        - npx prisma db push
         - npm run build
   artifacts:
     baseDirectory: .next
