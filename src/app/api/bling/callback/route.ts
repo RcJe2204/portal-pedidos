@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
     const clientSecret = process.env.BLING_CLIENT_SECRET;
     const basicToken = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-    // 1. Troca o código pelo Token no Bling
     const response = await fetch("https://www.bling.com.br/Api/v3/oauth/token", {
       method: "POST",
       headers: {
@@ -33,7 +32,6 @@ export async function GET(request: NextRequest) {
       throw new Error(data.error_description || "Erro ao obter token");
     }
 
-    // 2. Garante que existe um lojista
     let lojista = await prisma.lojista.findFirst();
 
     if (!lojista) {
@@ -46,13 +44,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. Verifica se já existe um token para este lojista
+    // VERIFICA se já existe token antes de criar/atualizar
     const tokenExistente = await prisma.blingToken.findFirst({
       where: { lojistaId: lojista.id }
     });
 
     if (tokenExistente) {
-      // Atualiza o token existente
       await prisma.blingToken.update({
         where: { id: tokenExistente.id },
         data: {
@@ -62,7 +59,6 @@ export async function GET(request: NextRequest) {
         },
       });
     } else {
-      // Cria um novo token
       await prisma.blingToken.create({
         data: {
           lojistaId: lojista.id,
