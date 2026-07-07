@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // Ajuste o caminho conforme seu projeto
+import prisma from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -33,29 +33,45 @@ export async function GET(request: NextRequest) {
       throw new Error(data.error_description || "Erro ao obter token");
     }
 
-    // 2. Salva o token no banco de dados RDS
-    // Como o banco está limpo, vamos criar um lojista padrão ou vincular ao primeiro
+    // 2. Garante que existe um lojista
     let lojista = await prisma.lojista.findFirst();
 
     if (!lojista) {
-      // Cria um lojista mestre se não existir nenhum
       lojista = await prisma.lojista.create({
         data: {
           nome: "Lojista Mestre",
           email: "admin@portal.com",
-          senha: "mudar_depois", // Ideal usar hash aqui
+          senha: "mudar_depois",
         }
       });
     }
 
-    await prisma.blingToken.create({
-      data: {
-        lojistaId: lojista.id,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt: new Date(Date.now() + data.expires_in * 1000),
-      },
+    // 3. Verifica se já existe um token para este lojista
+    const tokenExistente = await prisma.blingToken.findFirst({
+      where: { lojistaId: lojista.id }
     });
+
+    if (tokenExistente) {
+      // Atualiza o token existente
+      await prisma.blingToken.update({
+        where: { id: tokenExistente.id },
+        data: {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresAt: new Date(Date.now() + data.expires_in * 1000),
+        },
+      });
+    } else {
+      // Cria um novo token
+      await prisma.blingToken.create({
+        data: {
+          lojistaId: lojista.id,
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token,
+          expiresAt: new Date(Date.now() + data.expires_in * 1000),
+        },
+      });
+    }
 
     return NextResponse.redirect(new URL("/dashboard?auth=success", request.url));
   } catch (error: any) {

@@ -18,14 +18,14 @@ export async function GET() {
     // Traduz o formato do banco para o formato que a sua página (p.estoque.saldoVirtualTotal) entende
     const resultado = produtos.map(p => ({
       id: p.id,
-      codigo: p.codigo,
+      codigo: p.sku,
       nome: p.nome,
-      preco: p.preco,
+      preco: p.precoBase,
       // Aqui está o segredo: transformamos o número em objeto para a tela não quebrar
       estoque: { 
         saldoVirtualTotal: p.estoque || 0 
       },
-      situacao: p.situacao || 'A',
+      situacao: 'A',
       categoria: null
     }));
 

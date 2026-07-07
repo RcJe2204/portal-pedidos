@@ -16,12 +16,7 @@ export async function POST(request: NextRequest) {
 
     // 2. LOGIN REAL (BUSCANDO POR EMAIL OU CNPJ)
     const lojista = await prisma.lojista.findFirst({
-      where: {
-        OR: [
-          { email: email || undefined },
-          { cnpj: email ? email.replace(/\D/g, '') : undefined }
-        ]
-      }
+      where: { email: email }
     });
 
     if (lojista && (lojista.senha === senha || senha === '123456')) {
