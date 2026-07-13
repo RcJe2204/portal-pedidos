@@ -44,7 +44,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // VERIFICA se já existe token antes de criar/atualizar
     const tokenExistente = await prisma.blingToken.findFirst({
       where: { lojistaId: lojista.id }
     });
@@ -69,7 +68,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.redirect(new URL("/dashboard?auth=success", request.url));
+    // ✅ CORREÇÃO: usa o host da requisição em vez de request.url
+    const host = request.headers.get('host') || 'localhost:3000'
+    const protocol = request.headers.get('x-forwarded-proto') || 'https'
+    return NextResponse.redirect(`${protocol}://${host}/dashboard?auth=success`)
+    
   } catch (error: any) {
     console.error("Erro no Callback do Bling:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
